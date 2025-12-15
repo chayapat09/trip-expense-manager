@@ -1,7 +1,7 @@
 import { apiCall } from './api.js';
 import * as Store from './store.js';
 import * as Renderers from './renderers.js?v=6';
-import * as UI from './ui.js?v=2';
+import * as UI from './ui.js?v=3';
 
 async function loadData(type = 'all') {
     try {

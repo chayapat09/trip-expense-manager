@@ -22,18 +22,41 @@ export function showToast(message, type = 'info') {
 }
 
 export function setupTabs(loadCallback) {
+    // Function to activate a tab by ID
+    const activateTab = (tabId) => {
+        const validTabs = ['expenses', 'invoices', 'receipts', 'refunds', 'overview'];
+        if (!validTabs.includes(tabId)) tabId = 'expenses'; // Default to expenses
+
+        document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+        const tabBtn = document.querySelector(`.tab[data-tab="${tabId}"]`);
+        const tabContent = document.getElementById(`${tabId}-tab`);
+
+        if (tabBtn) tabBtn.classList.add('active');
+        if (tabContent) tabContent.classList.add('active');
+
+        // Load data for the tab
+        if (tabId === 'refunds' || tabId === 'overview' || tabId === 'invoices' || tabId === 'receipts') {
+            loadCallback(tabId);
+        }
+    };
+
+    // Handle tab clicks - update URL hash
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabId = tab.dataset.tab;
-            document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(`${tabId}-tab`).classList.add('active');
-
-            if (tabId === 'refunds' || tabId === 'overview' || tabId === 'invoices' || tabId === 'receipts') {
-                loadCallback(tabId); // Refresh specific tab data
-            }
+            window.location.hash = tabId;
         });
     });
+
+    // Handle hash changes (back/forward buttons)
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.slice(1) || 'expenses';
+        activateTab(hash);
+    });
+
+    // Activate tab based on initial URL hash
+    const initialHash = window.location.hash.slice(1) || 'expenses';
+    activateTab(initialHash);
 }
 
 
