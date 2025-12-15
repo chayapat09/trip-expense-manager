@@ -268,23 +268,70 @@ export function setupModals(refreshCallback) {
         const closeBtn = document.getElementById('closeSettingsBtn');
         if (closeBtn) closeBtn.onclick = () => settingsModal.classList.remove('show');
 
-        const saveBtn = document.getElementById('saveSettingsBtn');
-        if (saveBtn) {
-            saveBtn.onclick = async () => {
-                const newName = document.getElementById('tripNameInput').value;
-                const newRate = parseFloat(document.getElementById('defaultRateInput').value);
-                try {
-                    await apiCall('/settings', {
-                        method: 'PUT',
-                        body: JSON.stringify({ trip_name: newName, default_buffer_rate: newRate })
-                    });
-                    settingsModal.classList.remove('show');
-                    refreshCallback('settings');
-                    showToast('Settings saved!', 'success');
-                } catch (err) { showToast(err.message, 'error'); }
-            };
-        }
+        // Save Settings
+        document.getElementById('saveSettingsBtn')?.addEventListener('click', async () => {
+            const tripName = document.getElementById('tripNameInput').value;
+            const defaultRate = parseFloat(document.getElementById('defaultRateInput').value);
 
+            try {
+                await apiCall('/settings', {
+                    method: 'PUT', // Changed from POST to PUT to match original behavior
+                    body: JSON.stringify({ trip_name: tripName, default_buffer_rate: defaultRate })
+                });
+                showToast('Settings saved!', 'success'); // Changed to showToast and added success
+                document.getElementById('settingsModal').classList.remove('show'); // Changed from 'active' to 'show'
+                refreshCallback('settings'); // Changed from 'all' to 'settings'
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
+
+        // Export Database
+        document.getElementById('exportDbBtn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('exportDbBtn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Exporting...';
+            btn.disabled = true;
+
+            try {
+                const token = localStorage.getItem('adminToken');
+                if (!token) {
+                    showToast('Admin authentication required', 'error'); // Changed to showToast
+                    return;
+                }
+
+                const response = await fetch('/api/export/db', {
+                    headers: {
+                        'X-Admin-Token': token
+                    }
+                });
+
+                if (response.status === 401) {
+                    showToast('Authentication failed. Please login.', 'error'); // Changed to showToast
+                    return;
+                }
+
+                if (!response.ok) throw new Error('Export failed');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'trip_expenses_backup.zip';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                showToast('Database exported successfully', 'success'); // Changed to showToast
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Failed to export database', 'error'); // Changed to showToast
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        });
         // Add Participant
         const addPartBtn = document.getElementById('addParticipantBtn');
         if (addPartBtn) {

@@ -12,7 +12,7 @@ from typing import Optional
 import os
 
 # Import routers
-from routes import settings, participants, expenses, invoices, refunds, receipts
+from routes import settings, participants, expenses, invoices, refunds, receipts, export
 
 # Import database to initialize on startup
 import database
@@ -78,6 +78,7 @@ app.include_router(expenses.router)
 app.include_router(invoices.router)
 app.include_router(refunds.router)
 app.include_router(receipts.router)
+app.include_router(export.router)
 
 
 # ========================
