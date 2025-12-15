@@ -25,7 +25,7 @@ export function setupTabs(loadCallback) {
     // Function to activate a tab by ID
     const activateTab = (tabId) => {
         const validTabs = ['expenses', 'invoices', 'receipts', 'refunds', 'overview'];
-        if (!validTabs.includes(tabId)) tabId = 'expenses'; // Default to expenses
+        if (!validTabs.includes(tabId)) tabId = 'expenses';
 
         document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
         const tabBtn = document.querySelector(`.tab[data-tab="${tabId}"]`);
@@ -34,29 +34,84 @@ export function setupTabs(loadCallback) {
         if (tabBtn) tabBtn.classList.add('active');
         if (tabContent) tabContent.classList.add('active');
 
-        // Load data for the tab
         if (tabId === 'refunds' || tabId === 'overview' || tabId === 'invoices' || tabId === 'receipts') {
             loadCallback(tabId);
+        }
+    };
+
+    // Router to handle hash changes
+    const handleRoute = async () => {
+        const hash = window.location.hash.slice(1) || 'expenses';
+        const parts = hash.split('/');
+        const route = parts[0];
+        const id = parts[1];
+
+        // Close any open modals first
+        document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
+
+        // Handle deep links
+        if (route === 'expense' && id) {
+            activateTab('expenses');
+            // Wait for data to load then open modal
+            setTimeout(async () => {
+                try {
+                    const expense = store.expenses.find(e => e.id === parseInt(id));
+                    if (expense) {
+                        Renderers.renderExpenseDetailModal(expense);
+                    } else {
+                        showToast('Expense not found', 'error');
+                    }
+                } catch (err) { console.error(err); }
+            }, 300);
+        } else if (route === 'invoice' && id) {
+            activateTab('invoices');
+            setTimeout(async () => {
+                try {
+                    const data = await apiCall(`/invoices/details/${id}`);
+                    Renderers.renderInvoiceDetailsModal(data);
+                    document.getElementById('detailsModal').classList.add('show');
+                } catch (err) { showToast('Invoice not found', 'error'); }
+            }, 300);
+        } else if (route === 'receipt' && id) {
+            activateTab('receipts');
+            setTimeout(async () => {
+                try {
+                    const data = await apiCall(`/receipts/details/${id}`);
+                    Renderers.renderReceiptDetailsModal(data);
+                    document.getElementById('detailsModal').classList.add('show');
+                } catch (err) { showToast('Receipt not found', 'error'); }
+            }, 300);
+        } else if (route === 'refund' && id) {
+            activateTab('refunds');
+            setTimeout(async () => {
+                try {
+                    const data = await apiCall(`/refunds/${decodeURIComponent(id)}`);
+                    Renderers.renderRefundDetail(data);
+                } catch (err) { showToast('Refund data not found', 'error'); }
+            }, 300);
+        } else {
+            // Simple tab navigation
+            activateTab(route);
         }
     };
 
     // Handle tab clicks - update URL hash
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            const tabId = tab.dataset.tab;
-            window.location.hash = tabId;
+            window.location.hash = tab.dataset.tab;
         });
     });
 
     // Handle hash changes (back/forward buttons)
-    window.addEventListener('hashchange', () => {
-        const hash = window.location.hash.slice(1) || 'expenses';
-        activateTab(hash);
-    });
+    window.addEventListener('hashchange', handleRoute);
 
-    // Activate tab based on initial URL hash
-    const initialHash = window.location.hash.slice(1) || 'expenses';
-    activateTab(initialHash);
+    // Initial route
+    handleRoute();
+}
+
+// Helper to update URL when opening detail modals
+export function navigateTo(route) {
+    window.location.hash = route;
 }
 
 
@@ -136,10 +191,7 @@ export function setupGlobalDelegation(refreshCallback) {
             await apiCall(`/expenses/${id}`, { method: 'DELETE' });
             refreshCallback('expenses');
         } else if (action === 'viewExpense') {
-            const expense = store.expenses.find(e => e.id === parseInt(id));
-            if (expense) {
-                Renderers.renderExpenseDetailModal(expense);
-            }
+            navigateTo(`expense/${id}`);
         } else if (action === 'logPaymentModal') {
             const expense = store.expenses.find(e => e.id === parseInt(id));
             if (expense) {
@@ -193,23 +245,12 @@ export function setupGlobalDelegation(refreshCallback) {
             await apiCall(`/receipts/${id}`, { method: 'DELETE' });
             refreshCallback('receipts'); // Refresh Receipts tab
         } else if (action === 'viewInvoice') {
-            try {
-                const data = await apiCall(`/invoices/details/${id}`);
-                Renderers.renderInvoiceDetailsModal(data);
-                document.getElementById('detailsModal').classList.add('show');
-            } catch (err) { console.error(err); }
+            navigateTo(`invoice/${id}`);
         } else if (action === 'viewReceipt') {
-            try {
-                const data = await apiCall(`/receipts/details/${id}`);
-                Renderers.renderReceiptDetailsModal(data);
-                document.getElementById('detailsModal').classList.add('show');
-            } catch (err) { console.error(err); }
+            navigateTo(`receipt/${id}`);
         } else if (action === 'showRefundDetail') {
             const name = btn.dataset.name;
-            try {
-                const data = await apiCall(`/refunds/${name}`);
-                Renderers.renderRefundDetail(data);
-            } catch (err) { showToast(err.message, 'error'); }
+            navigateTo(`refund/${encodeURIComponent(name)}`);
         }
     });
 }
