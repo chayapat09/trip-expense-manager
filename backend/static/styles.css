@@ -376,7 +376,7 @@ body {
 
 /* === Data Tables === */
 .expenses-table-container,
-.table-container {
+.table-responsive-wrapper {
     overflow-x: auto;
 }
 
@@ -1105,16 +1105,14 @@ html {
 
     /* Tables - Horizontal Scroll */
     .expenses-table-container,
-    .table-container {
+    .table-responsive-wrapper {
         position: relative;
         margin: 0 -16px;
         padding: 0 16px;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
     }
 
     .expenses-table-container::after,
-    .table-container::after {
+    .table-responsive-wrapper::after {
         content: '';
         position: absolute;
         right: 0;

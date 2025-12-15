@@ -146,7 +146,10 @@ def get_invoice_data(participant_name: str) -> InvoiceData:
     this_invoice_total = sum(item.your_share_thb for item in new_expense_items)
     grand_total = this_invoice_total
     
-    next_version = db.get_next_invoice_version(participant_id)
+    grand_total = this_invoice_total
+    
+    # Use global ID for preview (estimate)
+    next_version = db.get_next_global_invoice_id()
     
     return InvoiceData(
         participant_name=participant_name,
@@ -189,18 +192,35 @@ def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = 
     participant = db.get_participant_by_name(participant_name)
     settings = db.get_settings()
     
-    # Generate PDF
-    pdf_path = pdf_generator.generate_invoice_pdf(invoice_data, settings['trip_name'])
-    
-    # Save invoice record
+    # 1. create placeholder invoice to get ID
     expense_ids = [item.expense_id for item in invoice_data.new_expenses]
-    db.create_invoice(
+    
+    # We pass 0 as temporary version, and empty PDF path
+    invoice_id = db.create_invoice(
         participant_id=participant['id'],
-        version=invoice_data.version,
+        version=0, 
         total_thb=invoice_data.this_invoice_total,
-        pdf_path=pdf_path,
+        pdf_path="",
         expense_ids=expense_ids
     )
+    
+    # 2. Update data with actual ID
+    invoice_data = InvoiceData(
+        participant_name=invoice_data.participant_name,
+        version=invoice_id, # Use ID as version
+        generated_at=invoice_data.generated_at,
+        previous_invoices=invoice_data.previous_invoices,
+        new_expenses=invoice_data.new_expenses,
+        this_invoice_total=invoice_data.this_invoice_total,
+        grand_total=invoice_data.grand_total,
+        has_new_expenses=invoice_data.has_new_expenses
+    )
+    
+    # 3. Generate PDF with correct ID
+    pdf_path = pdf_generator.generate_invoice_pdf(invoice_data, settings['trip_name'])
+    
+    # 4. Update record
+    db.update_invoice_pdf(invoice_id, pdf_path, invoice_id)
     
     return {
         "message": f"Invoice #{invoice_data.version} generated for {participant_name}",

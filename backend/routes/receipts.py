@@ -137,7 +137,7 @@ def get_receipt_data(participant_name: str, payment_method: Optional[str] = None
     return {
         "participant_name": participant_name,
         "has_unpaid_invoices": True,
-        "receipt_number": database.get_next_receipt_number(participant_id),
+        "receipt_number": database.get_next_global_receipt_id(),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "trip_name": settings['trip_name'],
         "items": items,
@@ -188,7 +188,18 @@ def generate_receipt(participant_name: str, request: ReceiptGenerationRequest):
             ))
             total += share_thb
     
-    receipt_number = database.get_next_receipt_number(participant_id)
+    # 1. Create Receipt Record Placeholder
+    receipt_id = database.create_receipt(
+        participant_id=participant_id,
+        receipt_number=0, # Placeholder
+        total_thb=round(total, 2),
+        payment_method=request.payment_method,
+        pdf_path="",
+        invoice_ids=invoice_ids
+    )
+    
+    # 2. Prepare Data with Real ID
+    receipt_number = receipt_id
     
     receipt_data = ReceiptData(
         participant_name=participant_name,
@@ -200,18 +211,11 @@ def generate_receipt(participant_name: str, request: ReceiptGenerationRequest):
         payment_method=request.payment_method
     )
     
-    # Generate PDF
+    # 3. Generate PDF
     pdf_path = pdf_generator.generate_receipt_pdf(receipt_data, settings['trip_name'])
     
-    # Save receipt to database
-    database.create_receipt(
-        participant_id=participant_id,
-        receipt_number=receipt_number,
-        total_thb=round(total, 2),
-        payment_method=request.payment_method,
-        pdf_path=pdf_path,
-        invoice_ids=invoice_ids
-    )
+    # 4. Update Database
+    database.update_receipt_pdf(receipt_id, pdf_path, receipt_number)
     
     return {
         "message": f"Receipt #{receipt_number} generated for {participant_name}",

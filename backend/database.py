@@ -391,6 +391,7 @@ def get_participant_expenses(participant_id: int) -> List[Dict[str, Any]]:
 
 
 def get_next_invoice_version(participant_id: int) -> int:
+    """Deprecated: Use global ID instead, but keeping for backward compatibility if needed"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -399,6 +400,31 @@ def get_next_invoice_version(participant_id: int) -> int:
         )
         result = cursor.fetchone()[0]
         return (result or 0) + 1
+
+
+def get_next_global_invoice_id() -> int:
+    """Estimate next invoice ID based on current max ID"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT seq FROM sqlite_sequence WHERE name='invoices'")
+        row = cursor.fetchone()
+        if row:
+            return row[0] + 1
+        
+        # Fallback if no sequence yet (empty table)
+        cursor.execute("SELECT MAX(id) FROM invoices")
+        row = cursor.fetchone()
+        return (row[0] or 0) + 1
+
+
+def update_invoice_pdf(invoice_id: int, pdf_path: str, version: int):
+    """Update invoice with generated PDF path and confirmed version/ID"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE invoices SET pdf_path = ?, version = ? WHERE id = ?",
+            (pdf_path, version, invoice_id)
+        )
 
 
 def get_previous_invoices(participant_id: int) -> List[Dict[str, Any]]:
@@ -475,6 +501,7 @@ def get_unpaid_invoices(participant_id: int) -> List[Dict[str, Any]]:
 
 
 def get_next_receipt_number(participant_id: int) -> int:
+    """Deprecated: using global ID instead"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -483,6 +510,30 @@ def get_next_receipt_number(participant_id: int) -> int:
         )
         result = cursor.fetchone()[0]
         return (result or 0) + 1
+
+
+def get_next_global_receipt_id() -> int:
+    """Estimate next receipt ID"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT seq FROM sqlite_sequence WHERE name='receipts'")
+        row = cursor.fetchone()
+        if row:
+            return row[0] + 1
+            
+        cursor.execute("SELECT MAX(id) FROM receipts")
+        row = cursor.fetchone()
+        return (row[0] or 0) + 1
+
+
+def update_receipt_pdf(receipt_id: int, pdf_path: str, receipt_number: int):
+    """Update receipt with PDF path and confirmed number"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE receipts SET pdf_path = ?, receipt_number = ? WHERE id = ?",
+            (pdf_path, receipt_number, receipt_id)
+        )
 
 
 def get_previous_receipts(participant_id: int) -> List[Dict[str, Any]]:
