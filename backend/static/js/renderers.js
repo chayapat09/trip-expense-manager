@@ -78,14 +78,14 @@ export function renderExpensesTable() {
         let viewBtn = `<button class="btn btn-small btn-secondary" data-action="viewExpense" data-id="${e.id}" title="View Details" style="${btnStyle}">👁️</button>`;
 
         let logBtn = !e.is_paid
-            ? `<button class="btn btn-small btn-primary" data-action="logPaymentModal" data-id="${e.id}" title="Log Payment" style="${btnStyle}">✓</button>`
+            ? `<button class="btn btn-small btn-primary admin-only" data-action="logPaymentModal" data-id="${e.id}" title="Log Payment" style="${btnStyle}">✓</button>`
             : '';
 
         let deleteBtn = '';
         if (e.is_invoiced || (e.invoices && e.invoices.length > 0)) {
-            deleteBtn = `<button class="btn btn-small btn-danger" disabled title="Cannot delete: Invoiced" style="${btnStyle} opacity: 0.4; cursor: not-allowed;">✕</button>`;
+            deleteBtn = `<button class="btn btn-small btn-danger admin-only" disabled title="Cannot delete: Invoiced" style="${btnStyle} opacity: 0.4; cursor: not-allowed;">✕</button>`;
         } else {
-            deleteBtn = `<button class="btn btn-small btn-danger" data-action="deleteExpense" data-id="${e.id}" title="Delete" style="${btnStyle}">✕</button>`;
+            deleteBtn = `<button class="btn btn-small btn-danger admin-only" data-action="deleteExpense" data-id="${e.id}" title="Delete" style="${btnStyle}">✕</button>`;
         }
 
         return `
@@ -205,7 +205,7 @@ export function renderInvoicesTab(data) {
         }
 
         let deleteBtn = !isPaid
-            ? `<button class="btn btn-small btn-danger" data-action="deleteInvoice" data-id="${inv.id}" title="Delete">✕</button>`
+            ? `<button class="btn btn-small btn-danger admin-only" data-action="deleteInvoice" data-id="${inv.id}" title="Delete">✕</button>`
             : '';
 
         const btnStyle = 'display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 6px; font-size: 0.9rem;';

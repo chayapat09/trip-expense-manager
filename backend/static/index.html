@@ -29,7 +29,8 @@
                 </div>
                 <div class="header-actions">
                     <span class="trip-name" id="tripName">Japan Trip 2025</span>
-                    <button class="btn btn-icon" id="settingsBtn" title="Settings">⚙️</button>
+                    <button class="btn btn-auth btn-login" id="authBtn" title="Login as admin">🔒 Login</button>
+                    <button class="btn btn-icon admin-only" id="settingsBtn" title="Settings">⚙️</button>
                 </div>
             </div>
         </header>
@@ -41,14 +42,13 @@
             <button class="tab" data-tab="receipts">🧾 Receipts</button>
             <button class="tab" data-tab="refunds">💸 Refunds</button>
             <button class="tab" data-tab="overview">📊 Overview</button>
-            <button class="btn btn-icon" id="settingsBtn" title="Settings">⚙️</button>
         </nav>
 
         <!-- Main Content -->
         <main class="main-content">
             <!-- Expenses Tab -->
             <section class="tab-content active" id="expenses-tab">
-                <div class="card add-expense-card">
+                <div class="card add-expense-card admin-only">
                     <h2 class="card-title">➕ Add New Expense</h2>
                     <form id="expenseForm" class="expense-form">
                         <div class="form-row">
@@ -112,7 +112,7 @@
             <section class="tab-content" id="invoices-tab">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="font-size: 1.5rem; font-weight: 700;">Invoices</h2>
-                    <button class="btn btn-primary" id="openCreateInvoiceModalBtn">
+                    <button class="btn btn-primary admin-only" id="openCreateInvoiceModalBtn">
                         ➕ Generate Invoice
                     </button>
                 </div>
@@ -140,7 +140,7 @@
             <section class="tab-content" id="receipts-tab">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="font-size: 1.5rem; font-weight: 700;">Receipts</h2>
-                    <button class="btn btn-success" id="openCreateReceiptModalBtn">
+                    <button class="btn btn-success admin-only" id="openCreateReceiptModalBtn">
                         ➕ Generate Receipt
                     </button>
                 </div>
@@ -203,6 +203,32 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>🔐 Admin Login</h2>
+                <button class="modal-close" id="closeLoginBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #a0a0b0; margin-bottom: 16px; font-size: 0.95rem;">
+                    Enter the admin token to unlock full editing access.
+                </p>
+                <div class="form-group">
+                    <label for="adminTokenInput" style="color: #ffffff;">Admin Token</label>
+                    <input type="password" id="adminTokenInput" placeholder="Enter token..." autocomplete="off"
+                        style="font-size: 1rem;">
+                </div>
+                <div id="loginError" class="form-error" style="display: none;">
+                    ❌ Invalid token. Please try again.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="doLoginBtn">🔓 Login</button>
+            </div>
+        </div>
     </div>
 
     <!-- Settings Modal -->

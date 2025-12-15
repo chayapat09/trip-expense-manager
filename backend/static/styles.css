@@ -611,7 +611,8 @@ body {
     justify-content: center;
 }
 
-.modal.show {
+.modal.show,
+.modal.active {
     display: flex;
 }
 
@@ -961,4 +962,76 @@ body {
     .invoice-generator .btn {
         width: 100%;
     }
+}
+
+/* =========================
+   GUEST MODE RESTRICTIONS
+   ========================= */
+body.guest-mode .admin-only {
+    display: none !important;
+}
+
+/* =========================
+   AUTH BUTTON STYLES
+   ========================= */
+.btn-auth {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.btn-login {
+    background: linear-gradient(135deg, rgba(255, 183, 77, 0.2), rgba(255, 183, 77, 0.1));
+    color: #ffb74d;
+    border-color: rgba(255, 183, 77, 0.3);
+}
+
+.btn-login:hover {
+    background: linear-gradient(135deg, rgba(255, 183, 77, 0.3), rgba(255, 183, 77, 0.2));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 183, 77, 0.2);
+}
+
+.btn-logout {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.1));
+    color: #81c784;
+    border-color: rgba(76, 175, 80, 0.3);
+}
+
+.btn-logout:hover {
+    background: linear-gradient(135deg, rgba(239, 83, 80, 0.2), rgba(239, 83, 80, 0.1));
+    color: #ef5350;
+    border-color: rgba(239, 83, 80, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Small modal for login */
+.modal-small {
+    max-width: 400px;
+}
+
+/* Form error message */
+.form-error {
+    color: #ef5350;
+    font-size: 0.9rem;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(239, 83, 80, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(239, 83, 80, 0.2);
+}
+
+/* Guest mode info text styling */
+.guest-info {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 16px;
+    background: rgba(255, 183, 77, 0.05);
+    border: 1px solid rgba(255, 183, 77, 0.1);
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
 }

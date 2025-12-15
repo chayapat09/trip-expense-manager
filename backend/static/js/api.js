@@ -1,10 +1,19 @@
+import { getToken } from './auth.js';
+
 const API_BASE = '/api';
 
 export async function apiCall(endpoint, options = {}) {
     try {
+        const token = getToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(token && { 'X-Admin-Token': token }),
+            ...options.headers
+        };
+
         const response = await fetch(`${API_BASE}${endpoint}`, {
-            headers: { 'Content-Type': 'application/json' },
-            ...options
+            ...options,
+            headers
         });
 
         if (!response.ok) {
@@ -15,8 +24,6 @@ export async function apiCall(endpoint, options = {}) {
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
-        // We'll dispatch a custom event or let the caller handle it.
-        // For now, re-throw.
         throw error;
     }
 }
