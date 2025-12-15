@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Expense Manager</title>
+    <meta name="description" content="Manage group travel expenses with currency conversion and PDF invoices">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Global Loader -->
+    <div id="globalLoader" class="global-loader active">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Loading Trip Data...</p>
+        </div>
+    </div>
+
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-brand">
+                    <h1 class="logo">🧳 Nine Travel Co., Ltd.</h1>
+                    <span class="header-subtitle">Trip Expense Manager</span>
+                </div>
+                <div class="header-actions">
+                    <span class="trip-name" id="tripName">Japan Trip 2025</span>
+                    <button class="btn btn-icon" id="settingsBtn" title="Settings">⚙️</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="expenses">💰 Expenses</button>
+            <button class="tab" data-tab="invoices">📄 Invoices</button>
+            <button class="tab" data-tab="receipts">🧾 Receipts</button>
+            <button class="tab" data-tab="refunds">💸 Refunds</button>
+            <button class="tab" data-tab="overview">📊 Overview</button>
+            <button class="btn btn-icon" id="settingsBtn" title="Settings">⚙️</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Expenses Tab -->
+            <section class="tab-content active" id="expenses-tab">
+                <div class="card add-expense-card">
+                    <h2 class="card-title">➕ Add New Expense</h2>
+                    <form id="expenseForm" class="expense-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="expenseName">Item Name</label>
+                                <input type="text" id="expenseName" placeholder="e.g., Hakuba Lift Pass" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="expenseAmount">Amount</label>
+                                <input type="number" id="expenseAmount" placeholder="6700" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="expenseCurrency">Currency</label>
+                                <select id="expenseCurrency">
+                                    <option value="JPY">🇯🇵 JPY</option>
+                                    <option value="THB">🇹🇭 THB</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="bufferRate">Buffer Rate</label>
+                                <input type="number" id="bufferRate" placeholder="0.25" step="0.01" value="0.25">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="label-with-action">
+                                <label>Participants</label>
+                                <button type="button" id="toggleAllParticipants" class="btn-text">Select All</button>
+                            </div>
+                            <div class="participants-checkboxes" id="participantCheckboxes">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <span class="calculated-preview" id="calculatedPreview"></span>
+                            <button type="submit" class="btn btn-primary">Add Expense</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card expenses-list-card">
+                    <h2 class="card-title">📋 Expenses</h2>
+                    <div class="expenses-table-container">
+                        <table class="data-table" id="expensesTable">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Budget (THB)</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Invoices Tab -->
+            <section class="tab-content" id="invoices-tab">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 1.5rem; font-weight: 700;">Invoices</h2>
+                    <button class="btn btn-primary" id="openCreateInvoiceModalBtn">
+                        ➕ Generate Invoice
+                    </button>
+                </div>
+
+                <div class="card">
+                    <table class="data-table" id="invoiceHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Invoice #</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoiceHistoryBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Receipts Tab -->
+            <section class="tab-content" id="receipts-tab">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 1.5rem; font-weight: 700;">Receipts</h2>
+                    <button class="btn btn-success" id="openCreateReceiptModalBtn">
+                        ➕ Generate Receipt
+                    </button>
+                </div>
+
+                <div class="card">
+                    <table class="data-table" id="receiptHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Receipt #</th>
+                                <th>For Invoices</th>
+                                <th>Amount</th>
+                                <th>Payment</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receiptHistoryBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Refunds Tab -->
+            <section class="tab-content" id="refunds-tab">
+                <div class="card">
+                    <h2 class="card-title">📊 Reconciliation Summary</h2>
+                    <table class="data-table" id="reconciliationTable">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Collected</th>
+                                <th>Actual Cost</th>
+                                <th>Surplus/Deficit</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reconciliationBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card refund-detail-card" id="refundDetailCard" style="display: none;">
+                    <h2 class="card-title">💸 Refund Details</h2>
+                    <div class="refund-detail" id="refundDetail">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Overview Tab (Dashboard) -->
+            <section class="tab-content" id="overview-tab">
+                <div class="card">
+                    <h2 class="card-title">📊 Dashboard</h2>
+                    <div class="overview-stats" id="overviewStats">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="modal-close" id="closeSettingsBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="tripNameInput">Trip Name</label>
+                    <input type="text" id="tripNameInput" placeholder="Japan Trip 2025">
+                </div>
+                <div class="form-group">
+                    <label for="defaultRateInput">Default Buffer Rate (THB/JPY)</label>
+                    <input type="number" id="defaultRateInput" step="0.01" placeholder="0.25">
+                </div>
+                <hr>
+                <h3>Participants</h3>
+                <div class="participants-list" id="participantsList">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="add-participant">
+                    <input type="text" id="newParticipantName" placeholder="New participant name">
+                    <button class="btn btn-primary" id="addParticipantBtn">Add</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Details Modal -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2 id="detailsModalTitle">📄 Details</h2>
+                <button class="modal-close" id="closeDetailsBtn">&times;</button>
+            </div>
+            <div class="modal-body" id="detailsModalBody">
+                <!-- Content populated by JS -->
+            </div>
+            <div class="modal-footer" id="detailsModalFooter">
+                <button class="btn btn-secondary" id="closeDetailsBtnFooter">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Invoice Modal -->
+    <div class="modal" id="createInvoiceModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📄 Generate Invoice</h2>
+                <button class="modal-close" id="closeCreateInvoiceModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label style="color: #ffffff;">Bill To</label>
+                    <select id="createInvoiceParticipant">
+                        <option value="">-- Select Participant --</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div id="createInvoiceExpensesSection" style="margin-top: 20px; display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 style="margin: 0; font-size: 1rem; color: #ffffff;">Select Expenses</h3>
+                        <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; color: #ffffff;">
+                            <input type="checkbox" id="createInvoiceSelectAll"> Select All
+                        </label>
+                    </div>
+                    <div id="createInvoiceExpensesList"
+                        style="max-height: 250px; overflow-y: auto; background: rgba(15, 15, 26, 0.9); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);">
+                        <!-- Checkboxes populated by JS -->
+                    </div>
+
+                    <div class="total-box" style="margin-top: 20px;">
+                        <span class="total-label">Total Amount</span>
+                        <span class="total-amount" id="createInvoiceTotal">฿0</span>
+                    </div>
+                </div>
+
+                <div id="createInvoiceEmpty" style="display: none; padding: 20px; text-align: center; color: #a0a0b0;">
+                    No unbilled expenses found for this participant.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="doGenerateInvoiceBtn" disabled>Generate Invoice</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Receipt Modal -->
+    <div class="modal" id="createReceiptModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🧾 Generate Receipt</h2>
+                <button class="modal-close" id="closeCreateReceiptModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label style="color: #ffffff;">Received From</label>
+                    <select id="createReceiptParticipant">
+                        <option value="">-- Select Participant --</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label style="color: #ffffff;">Payment Method</label>
+                    <input type="text" id="createReceiptMethod" placeholder="e.g. Bank Transfer, PromptPay"
+                        value="Bank Transfer">
+                </div>
+
+                <div id="createReceiptInvoicesSection" style="margin-top: 20px; display: none;">
+                    <h3 style="margin-bottom: 12px; font-size: 1rem; color: #ffffff;">Select Unpaid Invoices</h3>
+                    <div id="createReceiptInvoicesList"
+                        style="max-height: 250px; overflow-y: auto; background: rgba(15, 15, 26, 0.9); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);">
+                        <!-- Checkboxes populated by JS -->
+                    </div>
+
+                    <div class="total-box success" style="margin-top: 20px;">
+                        <span class="total-label">Total Received</span>
+                        <span class="total-amount" id="createReceiptTotal">฿0</span>
+                    </div>
+                </div>
+
+                <div id="createReceiptEmpty" style="display: none; padding: 20px; text-align: center; color: #a0a0b0;">
+                    No unpaid invoices found for this participant.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" id="doGenerateReceiptBtn" disabled>Generate Receipt</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="logPaymentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🧾 Log Payment</h2>
+                <button class="modal-close" id="closeLogPaymentBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="logPaymentForm">
+                    <input type="hidden" id="logPaymentExpenseId">
+                    <div class="form-group">
+                        <label style="color: #ffffff;">Expense Item</label>
+                        <input type="text" id="logPaymentNameDisplay" disabled
+                            style="background: rgba(108, 99, 255, 0.3); border: 1px solid rgba(108, 99, 255, 0.5); font-weight: bold; color: #ffffff;">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="logPaymentDate" style="color: #ffffff;">Date</label>
+                            <input type="date" id="logPaymentDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="logPaymentMethod" style="color: #ffffff;">Payment Method</label>
+                            <input type="text" id="logPaymentMethod" placeholder="e.g., Credit Card">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="logPaymentAmount" style="color: #ffffff;">Amount Paid</label>
+                            <input type="number" id="logPaymentAmount" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="logPaymentCurrency" style="color: #ffffff;">Currency</label>
+                            <select id="logPaymentCurrency">
+                                <option value="JPY">🇯🇵 JPY</option>
+                                <option value="THB">🇹🇭 THB</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="logPaymentRateGroup">
+                        <label for="logPaymentExchangeRate" style="color: #ffffff;">Exchange Rate (THB per JPY)</label>
+                        <input type="number" id="logPaymentExchangeRate" placeholder="0.235" step="0.0001">
+                    </div>
+                    <div class="form-notice" id="logPaymentPreview"
+                        style="margin-top:10px; font-weight:bold; color:#4ecdc4;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="savePaymentBtn">Save Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+
+</html>
