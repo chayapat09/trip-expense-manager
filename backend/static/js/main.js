@@ -10,6 +10,8 @@ async function loadData(type = 'all') {
             const settings = await apiCall('/settings');
             Store.setSettings(settings);
             document.getElementById('tripName').textContent = settings.trip_name;
+            const bufferInput = document.getElementById('bufferRate');
+            if (bufferInput) bufferInput.value = settings.default_buffer_rate || 0.25;
         }
         if (type === 'all' || type === 'participants') {
             const parts = await apiCall('/participants');
