@@ -375,7 +375,8 @@ body {
 }
 
 /* === Data Tables === */
-.expenses-table-container {
+.expenses-table-container,
+.table-container {
     overflow-x: auto;
 }
 
@@ -928,42 +929,6 @@ body {
     pointer-events: none;
 }
 
-/* === Responsive === */
-@media (max-width: 768px) {
-    .app {
-        padding: 0 16px 32px;
-    }
-
-    .header-content {
-        flex-direction: column;
-        gap: 16px;
-        text-align: center;
-    }
-
-    .tabs {
-        flex-wrap: wrap;
-    }
-
-    .tab {
-        flex: 1 1 45%;
-        padding: 10px;
-        font-size: 0.85rem;
-    }
-
-    .form-row {
-        grid-template-columns: 1fr;
-    }
-
-    .invoice-generator {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .invoice-generator .btn {
-        width: 100%;
-    }
-}
-
 /* =========================
    GUEST MODE RESTRICTIONS
    ========================= */
@@ -1034,4 +999,483 @@ body.guest-mode .admin-only {
     border: 1px solid rgba(255, 183, 77, 0.1);
     border-radius: var(--radius-md);
     margin-bottom: 16px;
+}
+
+/* =========================
+   MOBILE-FIRST RESPONSIVE
+   ========================= */
+
+/* Ensure smooth scrolling */
+html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Touch-friendly minimum sizes */
+.btn,
+.tab,
+.participant-checkbox,
+.modal-close {
+    min-height: 44px;
+}
+
+/* === TABLET STYLES (768px and below) === */
+@media (max-width: 768px) {
+    .app {
+        padding: 0 16px 32px;
+    }
+
+    .header {
+        padding: 16px 0;
+    }
+
+    .header-content {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .logo {
+        font-size: 1.5rem;
+    }
+
+    /* Scrollable Tabs */
+    .tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        gap: 4px;
+        padding: 6px;
+    }
+
+    .tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab {
+        flex: 0 0 auto;
+        padding: 12px 16px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    /* Forms */
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .form-group input,
+    .form-group select {
+        padding: 14px 16px;
+        font-size: 16px;
+        /* Prevents iOS zoom on focus */
+    }
+
+    /* Participant Checkboxes */
+    .participants-checkboxes {
+        gap: 8px;
+    }
+
+    .participant-checkbox {
+        padding: 12px 16px;
+        flex: 1 1 calc(50% - 4px);
+        min-width: 120px;
+    }
+
+    /* Cards */
+    .card {
+        padding: 16px;
+        margin-bottom: 16px;
+        border-radius: var(--radius-lg);
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+        margin-bottom: 16px;
+    }
+
+    /* Tables - Horizontal Scroll */
+    .expenses-table-container,
+    .table-container {
+        position: relative;
+        margin: 0 -16px;
+        padding: 0 16px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .expenses-table-container::after,
+    .table-container::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 30px;
+        background: linear-gradient(to left, var(--bg-card), transparent);
+        pointer-events: none;
+        opacity: 0.8;
+    }
+
+    .data-table {
+        min-width: 600px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 12px 10px;
+        font-size: 0.85rem;
+    }
+
+    /* Action Buttons in Tables */
+    .data-table .btn-small {
+        padding: 8px 10px;
+        font-size: 0.75rem;
+    }
+
+    /* Invoice Generator */
+    .invoice-generator {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .invoice-generator .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .stat-card {
+        padding: 16px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+    }
+
+    /* Modals */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        max-height: 90vh;
+        margin: auto 10px;
+        border-radius: var(--radius-lg);
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        background: var(--bg-secondary);
+        z-index: 1;
+    }
+
+    .modal-header h2 {
+        font-size: 1.1rem;
+    }
+
+    .modal-body {
+        padding: 16px 20px;
+    }
+
+    .modal-footer {
+        padding: 16px 20px;
+        position: sticky;
+        bottom: 0;
+        background: var(--bg-secondary);
+    }
+
+    .modal-close {
+        width: 44px;
+        height: 44px;
+        font-size: 1.8rem;
+    }
+
+    .large-modal {
+        width: 95%;
+    }
+
+    /* Invoice Paper */
+    .invoice-paper {
+        padding: 20px;
+    }
+
+    .invoice-header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: left;
+    }
+
+    .invoice-meta {
+        text-align: left;
+    }
+
+    .invoice-brand h3 {
+        font-size: 1.25rem;
+    }
+
+    .premium-table td,
+    .premium-table th {
+        padding: 10px 6px;
+        font-size: 0.85rem;
+    }
+
+    .total-box {
+        flex-direction: column;
+        gap: 8px;
+        text-align: center;
+    }
+
+    .total-amount {
+        font-size: 1.3rem;
+    }
+
+    /* Form Actions */
+    .form-actions {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* === SMALL MOBILE STYLES (480px and below) === */
+@media (max-width: 480px) {
+    .app {
+        padding: 0 12px 24px;
+    }
+
+    .header {
+        padding: 12px 0;
+    }
+
+    .logo {
+        font-size: 1.25rem;
+    }
+
+    .header-subtitle {
+        font-size: 0.75rem;
+    }
+
+    .header-actions {
+        gap: 8px;
+    }
+
+    .trip-name {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+
+    .btn-auth {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    .btn-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Tabs - Full Width Scroll */
+    .tabs {
+        margin: 0 -12px 16px;
+        padding: 6px 12px;
+        border-radius: 0;
+    }
+
+    .tab {
+        padding: 10px 14px;
+        font-size: 0.8rem;
+    }
+
+    /* Cards */
+    .card {
+        padding: 14px;
+        border-radius: var(--radius-md);
+    }
+
+    .card-title {
+        font-size: 1rem;
+    }
+
+    /* Participant Checkboxes - Stack */
+    .participant-checkbox {
+        flex: 1 1 100%;
+    }
+
+    /* Stats Grid - Single Column */
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        padding: 14px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        text-align: left;
+    }
+
+    .stat-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .stat-content {
+        flex: 1;
+    }
+
+    /* Tables */
+    .data-table th,
+    .data-table td {
+        padding: 10px 8px;
+        font-size: 0.8rem;
+    }
+
+    /* Modals - Almost Full Screen */
+    .modal-content {
+        width: 100%;
+        height: 100%;
+        max-height: 100vh;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .modal-header {
+        border-radius: 0;
+    }
+
+    .modal-body {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    /* Invoice Paper */
+    .invoice-paper {
+        padding: 16px;
+        border-radius: var(--radius-md);
+    }
+
+    .invoice-brand h3 {
+        font-size: 1.1rem;
+    }
+
+    .premium-table td,
+    .premium-table th {
+        padding: 8px 4px;
+        font-size: 0.8rem;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+
+    .btn-small {
+        padding: 8px 12px;
+        font-size: 0.75rem;
+    }
+
+    /* Empty State */
+    .empty-state {
+        padding: 32px 16px;
+    }
+
+    .empty-state-icon {
+        font-size: 2.5rem;
+    }
+
+    /* Add participant input */
+    .add-participant {
+        flex-direction: column;
+    }
+
+    .add-participant input {
+        width: 100%;
+    }
+
+    .add-participant .btn {
+        width: 100%;
+    }
+}
+
+/* === ACTIVE STATES FOR TOUCH === */
+@media (hover: none) and (pointer: coarse) {
+    .btn:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+
+    .tab:active {
+        transform: scale(0.98);
+    }
+
+    .participant-checkbox:active {
+        transform: scale(0.98);
+    }
+
+    .card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .stat-card:hover {
+        transform: none;
+    }
+
+    .btn-icon:hover {
+        transform: none;
+    }
+
+    .btn-primary:hover {
+        transform: none;
+    }
+}
+
+/* === LANDSCAPE MOBILE === */
+@media (max-height: 500px) and (orientation: landscape) {
+    .modal-content {
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .modal-body {
+        max-height: calc(100vh - 120px);
+    }
+
+    .header {
+        padding: 8px 0;
+    }
+
+    .tabs {
+        margin-bottom: 12px;
+    }
 }

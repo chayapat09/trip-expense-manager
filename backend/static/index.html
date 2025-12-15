@@ -118,21 +118,23 @@
                 </div>
 
                 <div class="card">
-                    <table class="data-table" id="invoiceHistoryTable">
-                        <thead>
-                            <tr>
-                                <th>Participant</th>
-                                <th>Invoice #</th>
-                                <th>Amount</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="invoiceHistoryBody">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
+                    <div class="table-container">
+                        <table class="data-table" id="invoiceHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Participant</th>
+                                    <th>Invoice #</th>
+                                    <th>Amount</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoiceHistoryBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -146,22 +148,24 @@
                 </div>
 
                 <div class="card">
-                    <table class="data-table" id="receiptHistoryTable">
-                        <thead>
-                            <tr>
-                                <th>Participant</th>
-                                <th>Receipt #</th>
-                                <th>For Invoices</th>
-                                <th>Amount</th>
-                                <th>Payment</th>
-                                <th>Date</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="receiptHistoryBody">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
+                    <div class="table-container">
+                        <table class="data-table" id="receiptHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Participant</th>
+                                    <th>Receipt #</th>
+                                    <th>For Invoices</th>
+                                    <th>Amount</th>
+                                    <th>Payment</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiptHistoryBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -169,20 +173,22 @@
             <section class="tab-content" id="refunds-tab">
                 <div class="card">
                     <h2 class="card-title">📊 Reconciliation Summary</h2>
-                    <table class="data-table" id="reconciliationTable">
-                        <thead>
-                            <tr>
-                                <th>Participant</th>
-                                <th>Collected</th>
-                                <th>Actual Cost</th>
-                                <th>Surplus/Deficit</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reconciliationBody">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
+                    <div class="table-container">
+                        <table class="data-table" id="reconciliationTable">
+                            <thead>
+                                <tr>
+                                    <th>Participant</th>
+                                    <th>Collected</th>
+                                    <th>Actual Cost</th>
+                                    <th>Surplus/Deficit</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reconciliationBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div class="card refund-detail-card" id="refundDetailCard" style="display: none;">
