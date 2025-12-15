@@ -262,7 +262,7 @@ export function setupModals(refreshCallback) {
     if (settingsBtn && settingsModal) {
         settingsBtn.addEventListener('click', () => {
             document.getElementById('tripNameInput').value = store.settings.trip_name || '';
-            document.getElementById('defaultRateInput').value = store.settings.buffer_rate || '';
+            document.getElementById('defaultRateInput').value = store.settings.default_buffer_rate || '';
             settingsModal.classList.add('show');
         });
         const closeBtn = document.getElementById('closeSettingsBtn');
