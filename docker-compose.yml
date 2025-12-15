@@ -10,6 +10,8 @@ services:
       - "5059:8000"
     volumes:
       - trip_data:/app/data
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
     restart: unless-stopped
 
 volumes:
