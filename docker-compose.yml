@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  trip-expense-manager:
+    container_name: trip-expense-manager
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5059:8000"
+    volumes:
+      - trip_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  trip_data:
