@@ -265,47 +265,372 @@ export function renderReceiptsTab(data) {
     }).join('');
 }
 
+// === Payments Tab ===
+
+export function renderPaymentsTab(expenses) {
+    const tbody = document.getElementById('paymentsBody');
+    const totalEl = document.getElementById('paymentsTotal').querySelector('.total-amount');
+    if (!tbody) return;
+
+    // Filter paid expenses and sort by actual date desc
+    const payments = expenses.filter(e => e.is_paid).sort((a, b) => {
+        return new Date(b.actual_date) - new Date(a.actual_date);
+    });
+
+    if (payments.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No payments recorded yet.</div></td></tr>`;
+        totalEl.textContent = '฿0';
+        return;
+    }
+
+    let totalPaid = 0;
+
+    tbody.innerHTML = payments.map(p => {
+        totalPaid += p.actual_thb;
+        const rate = p.actual_currency === 'JPY' && p.actual_amount > 0 ? (p.actual_thb / p.actual_amount).toFixed(4) : '-';
+
+        const btnStyle = 'display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 6px; font-size: 0.9rem;';
+
+        return `
+            <tr>
+                <td style="color: #ffffff;">${formatDate(p.actual_date)}</td>
+                <td>
+                    <div style="font-weight: 500; color: #ffffff;">${p.name}</div>
+                    <div style="font-size: 0.8rem; color: #a0a0b0;">${p.participants.length} participants</div>
+                </td>
+                <td style="color: #a0a0b0;">${p.actual_method || '-'}</td>
+                <td style="color: #ffffff;">${formatCurrency(p.actual_amount, p.actual_currency)}</td>
+                <td style="color: #a0a0b0;">${rate}</td>
+                <td style="color: #4ade80; font-weight: 600;">฿${p.actual_thb.toLocaleString()}</td>
+                <td>
+                    <button class="btn btn-small btn-secondary" data-action="viewExpense" data-id="${p.id}" title="View Details" style="${btnStyle}">👁️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    totalEl.textContent = `฿${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // === Overview (Dashboard) ===
 
 export function renderOverview(data) {
-    const statsContainer = document.getElementById('overviewStats');
-    if (statsContainer) {
-        // Calculate totals dynamically if not provided or just use data.stats
-        const stats = data.stats || {
-            total_invoices: 0, total_invoiced_amount: 0,
-            paid_invoices: 0, paid_amount: 0,
-            unpaid_invoices: 0, unpaid_amount: 0,
-            total_receipts: 0, total_received: 0
-        };
+    const kpiContainer = document.getElementById('financialKPIs');
+    const opStmtContainer = document.getElementById('operatingStatementTbl');
 
-        statsContainer.innerHTML = `
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">📄</div>
-                    <div class="stat-value">${stats.total_invoices}</div>
-                    <div class="stat-label">Total Invoices</div>
-                    <div class="stat-amount">฿${stats.total_invoiced_amount.toLocaleString()}</div>
+    // Default data structure if missing (safety)
+    const financial = data.financial_dashboard || {
+        net_cash_position: 0,
+        collection_ratio: 0,
+        accounts_receivable: 0,
+        total_inflow: 0,
+        total_outflow: 0,
+        total_committed_spend: 0
+    };
+
+    // 1. Render KPIs
+    if (kpiContainer) {
+        const netPosColor = financial.net_cash_position >= 0 ? '#4ade80' : '#f87171';
+        const netPosIcon = financial.net_cash_position >= 0 ? '📈' : '📉';
+
+        kpiContainer.innerHTML = `
+            <!-- Net Position -->
+            <div style="background: rgba(15, 15, 26, 0.6); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="color: #a0a0b0; font-size: 0.85rem; margin-bottom: 8px;">Net Cash Position</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: ${netPosColor};">
+                    ${netPosIcon} ฿${financial.net_cash_position.toLocaleString()}
                 </div>
-                <div class="stat-card stat-success">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-value">${stats.paid_invoices}</div>
-                    <div class="stat-label">Paid Invoices</div>
-                    <div class="stat-amount">฿${stats.paid_amount.toLocaleString()}</div>
+                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">Liquidity Available</div>
+            </div>
+
+            <!-- Collection Ratio -->
+            <div style="background: rgba(15, 15, 26, 0.6); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="color: #a0a0b0; font-size: 0.85rem; margin-bottom: 8px;">Collection Ratio</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #60a5fa;">
+                    ${financial.collection_ratio}%
                 </div>
-                <div class="stat-card stat-warning">
-                    <div class="stat-icon">⏳</div>
-                    <div class="stat-value">${stats.unpaid_invoices}</div>
-                    <div class="stat-label">Pending Payment</div>
-                    <div class="stat-amount">฿${stats.unpaid_amount.toLocaleString()}</div>
+                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">% of Invoiced Collected</div>
+            </div>
+
+            <!-- Accounts Receivable -->
+            <div style="background: rgba(15, 15, 26, 0.6); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="color: #a0a0b0; font-size: 0.85rem; margin-bottom: 8px;">Accounts Receivable</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #fbbf24;">
+                    ฿${financial.accounts_receivable.toLocaleString()}
                 </div>
-                <div class="stat-card stat-primary">
-                    <div class="stat-icon">🧾</div>
-                    <div class="stat-value">${stats.total_receipts}</div>
-                    <div class="stat-label">Receipts Generated</div>
-                    <div class="stat-amount">฿${stats.total_received.toLocaleString()}</div>
+                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">Pending Collections</div>
+            </div>
+
+            <!-- Total Committed Spend -->
+            <div style="background: rgba(15, 15, 26, 0.6); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="color: #a0a0b0; font-size: 0.85rem; margin-bottom: 8px;">Total Committed Spend</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #e2e8f0;">
+                    ฿${financial.total_committed_spend.toLocaleString()}
+                </div>
+                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">Total Invoiced Expenses</div>
+            </div>
+        `;
+    }
+
+    // 2. Render Operating Statement
+    if (opStmtContainer) {
+        opStmtContainer.innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; font-family: monospace, sans-serif;">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <td style="padding: 12px 0; color: #a0a0b0;">Total Invoiced Income</td>
+                    <td style="padding: 12px 0; text-align: right; color: #e2e8f0;">฿${financial.total_committed_spend.toLocaleString()}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <td style="padding: 12px 0; color: #f87171;">Less: Unpaid Invoices (AR)</td>
+                    <td style="padding: 12px 0; text-align: right; color: #f87171;">(฿${financial.accounts_receivable.toLocaleString()})</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02);">
+                    <td style="padding: 12px 0; font-weight: 600; color: #fff;">= Net Cash Collected (Inflow)</td>
+                    <td style="padding: 12px 0; text-align: right; font-weight: 600; color: #4ade80;">฿${financial.total_inflow.toLocaleString()}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <td style="padding: 12px 0; color: #f87171;">Less: Paid Expenses (Outflow)</td>
+                    <td style="padding: 12px 0; text-align: right; color: #f87171;">(฿${financial.total_outflow.toLocaleString()})</td>
+                </tr>
+                <tr>
+                    <td style="padding: 16px 0; font-size: 1.1rem; font-weight: 700; color: #fff;">Net Cash Position</td>
+                    <td style="padding: 16px 0; text-align: right; font-size: 1.1rem; font-weight: 700; color: ${financial.net_cash_position >= 0 ? '#4ade80' : '#f87171'};">
+                        ฿${financial.net_cash_position.toLocaleString()}
+                    </td>
+                </tr>
+            </table>
+        `;
+    }
+
+    // 3. Render Spend Performance (Progress Bar)
+    const perfContainer = document.getElementById('spendPerformanceCard');
+    if (perfContainer) {
+        // Fallback zeroes
+        // Extract values
+        const budget = financial.total_budget || 0;
+        const actual = financial.actual_paid || 0;
+        const pending = financial.pending_budget || 0;
+        const savings = financial.savings || 0;
+
+        const savingsColor = savings >= 0 ? '#4ade80' : '#f87171';
+        const savingsLabel = savings >= 0 ? 'Realized Savings' : 'Realized Overrun';
+
+        perfContainer.innerHTML = `
+            <h3 style="margin-bottom: 24px; font-size: 1.1rem; color: #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+                <span>🎯 Spend Performance <span style="font-size: 0.8rem; color: #a0a0b0; font-weight: 400;">(Planned vs Actual)</span></span>
+                <span style="font-size: 0.9rem; color: ${savingsColor}; font-weight: 600;">
+                    ${savingsLabel}: ฿${Math.abs(savings).toLocaleString()}
+                </span>
+            </h3>
+            
+            <div style="position: relative; height: 120px; width: 100%; margin-bottom: 20px;">
+                <canvas id="spendPerformanceChart"></canvas>
+            </div>
+            
+            <!-- Stats -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 0.8rem; color: #a0a0b0; margin-bottom: 4px;">Total Planned</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: #fff;">฿${budget.toLocaleString()}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 4px;">Actual Paid</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: #60a5fa;">฿${actual.toLocaleString()}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 0.8rem; color: #fbbf24; margin-bottom: 4px;">Pending Payment</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: #fbbf24;">฿${pending.toLocaleString()}</div>
                 </div>
             </div>
         `;
+
+        // Render Chart
+        setTimeout(() => {
+            const ctx = document.getElementById('spendPerformanceChart');
+            if (ctx) {
+                if (window.mySpendChart) window.mySpendChart.destroy();
+
+                // If savings < 0 (Overrun), we don't show a negative bar, we just show Actual + Pending which will exceed Budget.
+                // If savings > 0, we show a green "Savings" segment to fill the bar up to Budget.
+                const visualSavings = savings > 0 ? savings : 0;
+
+                window.mySpendChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Budget'],
+                        datasets: [
+                            {
+                                label: 'Actual Paid',
+                                data: [actual],
+                                backgroundColor: '#60a5fa',
+                                barThickness: 40
+                            },
+                            {
+                                label: 'Pending Payment',
+                                data: [pending],
+                                backgroundColor: '#fbbf24',
+                                barThickness: 40
+                            },
+                            {
+                                label: 'Realized Savings',
+                                data: [visualSavings],
+                                backgroundColor: 'rgba(74, 222, 128, 0.3)', // Transparent green
+                                borderColor: '#4ade80',
+                                borderWidth: 1,
+                                barThickness: 40,
+                                borderSkipped: false
+                            }
+                        ]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: { padding: { top: 40 } }, // More space for label
+                        scales: {
+                            x: {
+                                stacked: true,
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#6b7280', callback: (val) => '฿' + val.toLocaleString() },
+                                max: Math.max(budget, actual + pending) * 1.15 // More space for label
+                            },
+                            y: {
+                                stacked: true,
+                                display: false
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed.x !== null) { label += '฿' + context.parsed.x.toLocaleString(); }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    plugins: [{
+                        id: 'budgetLine',
+                        afterDraw: (chart) => {
+                            const ctx = chart.ctx;
+                            const xAxis = chart.scales.x;
+                            const yAxis = chart.scales.y;
+                            const x = xAxis.getPixelForValue(budget);
+                            const top = yAxis.top;
+                            const bottom = yAxis.bottom;
+
+                            if (x < xAxis.left || x > xAxis.right) return; // Don't draw if out of bounds (unlikely given max)
+
+                            ctx.save();
+                            // Draw Line
+                            ctx.beginPath();
+                            ctx.moveTo(x, top - 10);
+                            ctx.lineTo(x, bottom);
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = '#e2e8f0'; // Light white/gray
+                            ctx.setLineDash([5, 5]);
+                            ctx.stroke();
+
+                            // Draw Label
+                            ctx.fillStyle = '#e2e8f0';
+                            ctx.font = 'bold 0.75rem Inter, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('Total Planned', x, top - 15);
+                            ctx.restore();
+                        }
+                    }]
+                });
+            }
+        }, 0);
+    }
+
+    // 3. Render Cash Flow Chart
+    if (data.cash_flow) {
+        const ctx = document.getElementById('cashFlowChart');
+        if (ctx) {
+            if (window.myCashFlowChart) window.myCashFlowChart.destroy();
+
+            window.myCashFlowChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.cash_flow.labels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Cumulative Balance',
+                            data: data.cash_flow.cumulative,
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            yAxisID: 'y',
+                            order: 0
+                        },
+                        {
+                            label: 'Inflow',
+                            data: data.cash_flow.inflow,
+                            backgroundColor: '#4ade80',
+                            order: 1
+                        },
+                        {
+                            label: 'Outflow',
+                            data: data.cash_flow.outflow,
+                            backgroundColor: '#f87171',
+                            order: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#a0a0b0' } }
+                    },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7280' } },
+                        x: { grid: { display: false }, ticks: { color: '#6b7280' } }
+                    }
+                }
+            });
+        }
+    }
+
+    // 4. Render Expense Breakdown Chart
+    if (data.expense_breakdown) {
+        const ctx = document.getElementById('expenseChart');
+        if (ctx) {
+            if (window.myExpenseChart) window.myExpenseChart.destroy();
+
+            window.myExpenseChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.expense_breakdown.labels,
+                    datasets: [{
+                        data: data.expense_breakdown.data,
+                        backgroundColor: data.expense_breakdown.colors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#a0a0b0', boxWidth: 12 }
+                        }
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -350,14 +675,14 @@ export function renderCreateInvoiceModal(participantName, unbilledExpenses) {
                 </div>
                 <div style="color: #4ecdc4; font-weight: 600;">฿${exp.your_share_thb.toLocaleString()}</div>
             </label>
-        `).join('');
+            `).join('');
 
         // Initial calculation
         const calculateTotal = () => {
             let total = 0;
             const checks = list.querySelectorAll('.create-invoice-check:checked');
             checks.forEach(c => total += parseFloat(c.dataset.amount || 0));
-            totalEl.textContent = `฿${total.toLocaleString()}`;
+            totalEl.textContent = `฿${total.toLocaleString()} `;
             btn.disabled = total > 0 ? false : true;
         };
         calculateTotal();
@@ -425,13 +750,13 @@ export function renderCreateReceiptModal(participantName, unpaidInvoices) {
                 </div>
                 <div style="color: #4ecdc4; font-weight: 600;">฿${inv.total_thb.toLocaleString()}</div>
             </label>
-        `).join('');
+            `).join('');
 
         const calculateTotal = () => {
             let total = 0;
             const checks = list.querySelectorAll('.create-receipt-check:checked');
             checks.forEach(c => total += parseFloat(c.dataset.amount || 0));
-            totalEl.textContent = `฿${total.toLocaleString()}`;
+            totalEl.textContent = `฿${total.toLocaleString()} `;
             btn.disabled = total > 0 ? false : true;
         };
         calculateTotal();
@@ -445,7 +770,7 @@ export function renderCreateReceiptModal(participantName, unpaidInvoices) {
 export function renderInvoiceDetailsModal(data) {
     const titleEl = document.getElementById('detailsModalTitle');
     const container = document.getElementById('detailsModalBody');
-    if (titleEl) titleEl.textContent = `Invoice #${data.version}`;
+    if (titleEl) titleEl.textContent = `Invoice #${data.version} `;
     if (!container) return;
 
     let itemsInfo = '<p class="text-muted" style="text-align:center; padding:20px;">No new expenses.</p>';
@@ -477,11 +802,11 @@ export function renderInvoiceDetailsModal(data) {
                     </tbody>
                 </table>
             </div>
-        `;
+            `;
     }
 
     container.innerHTML = `
-        <div class="invoice-paper" style="box-shadow: none; border: 1px solid #e5e7eb;">
+            <div class="invoice-paper" style="box-shadow: none; border: 1px solid #e5e7eb;">
             <div class="invoice-header">
                 <div class="invoice-brand">
                     <p style="color: #6b7280; font-size: 0.85rem; margin-bottom: 4px;">Nine Travel Co., Ltd.</p>
@@ -510,21 +835,21 @@ export function renderInvoiceDetailsModal(data) {
                     📥 Download PDF
                 </button>
             </div>
-        </div>
-    `;
+        </div >
+            `;
 }
 
 export function renderReceiptDetailsModal(data) {
     const titleEl = document.getElementById('detailsModalTitle');
     const container = document.getElementById('detailsModalBody');
-    if (titleEl) titleEl.textContent = `Receipt #${data.receipt_number}`;
+    if (titleEl) titleEl.textContent = `Receipt #${data.receipt_number} `;
     if (!container) return;
 
     // Items Table
     let itemsHtml = '';
     if (data.items && data.items.length > 0) {
         const itemRows = data.items.map(item => `
-            <tr>
+            < tr >
                 <td>
                     <div style="font-weight: 500;">${item.expense_name}</div>
                 </td>
@@ -532,11 +857,11 @@ export function renderReceiptDetailsModal(data) {
                 <td>${item.buffer_rate || '-'}</td>
                 <td>${item.share}</td>
                 <td class="text-right">฿${item.amount_paid.toLocaleString()}</td>
-            </tr>
-        `).join('');
+            </tr >
+            `).join('');
 
         itemsHtml = `
-            <div class="invoice-section">
+            < div class="invoice-section" >
                 <div class="invoice-section-title">Payment For</div>
                 <table class="premium-table">
                     <thead>
@@ -550,13 +875,13 @@ export function renderReceiptDetailsModal(data) {
                     </thead>
                     <tbody>${itemRows}</tbody>
                 </table>
-            </div>
-         `;
+            </div >
+            `;
     }
 
     // Main Layout (Invoice Paper Style)
     container.innerHTML = `
-        <div class="invoice-paper" style="box-shadow: none; border: 1px solid #e5e7eb;">
+            < div class="invoice-paper" style = "box-shadow: none; border: 1px solid #e5e7eb;" >
             <div class="invoice-header">
                 <div class="invoice-brand">
                     <p style="color: #6b7280; font-size: 0.85rem; margin-bottom: 4px;">Nine Travel Co., Ltd.</p>
@@ -588,127 +913,186 @@ export function renderReceiptDetailsModal(data) {
                     📥 Download PDF
                 </a>
             </div>
-        </div>
-    `;
+        </div >
+            `;
 }
 
 // === Reconciliation ===
 
 export function renderReconciliationTable(data) {
-    const tbody = document.getElementById('reconciliationBody');
-    if (!tbody) return;
+    // NOTE: This function now renders a GRID of cards to #reconciliationGrid
+    const grid = document.getElementById('reconciliationGrid');
+    if (!grid) return; // Grid container not found
+
+    console.log('DEBUG RECON DATA:', data);
 
     // Handle list if data is list (from API)
     const reconciliation = Array.isArray(data) ? data : (data.reconciliation || []);
 
     if (reconciliation.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No reconciliation data available.</div></td></tr>`;
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">🤷‍♂️</div>
+                <p>No reconciliation data available yet.</p>
+            </div>
+        `;
         return;
     }
 
-    tbody.innerHTML = reconciliation.map(rec => {
+    grid.innerHTML = reconciliation.map(rec => {
         const surplus = rec.surplus_deficit || 0;
         const isSurplus = surplus >= 0;
-        let diffColor = isSurplus ? 'text-success' : 'text-danger';
-        let diffText = isSurplus ? `+฿${surplus.toLocaleString()}` : `-฿${Math.abs(surplus).toLocaleString()}`;
-        if (surplus === 0) { diffColor = 'text-muted'; diffText = '0'; }
+        const statusClass = isSurplus ? 'surplus' : 'deficit';
+        const statusLabel = isSurplus ? 'Surplus' : 'Deficit';
+
+        // Avatar letter
+        const initial = rec.participant_name ? rec.participant_name.charAt(0).toUpperCase() : '?';
 
         return `
-            <tr>
-                <td><strong>${rec.participant_name}</strong></td>
-                <td>฿${(rec.total_collected || 0).toLocaleString()}</td>
-                <td>฿${(rec.total_actual || 0).toLocaleString()}</td>
-                <td class="${diffColor}"><strong>${diffText}</strong></td>
-                <td>
-                    <button class="btn btn-small btn-secondary" data-action="showRefundDetail" data-name="${rec.participant_name}">👁️ Details</button>
-                </td>
-            </tr>
+            <div class="recon-card ${statusClass}">
+                <div class="recon-header">
+                    <div class="recon-avatar">${initial}</div>
+                    <div class="recon-info">
+                        <h3>${rec.participant_name}</h3>
+                        <p>Participant</p>
+                    </div>
+                </div>
+
+                <div class="recon-stats">
+                    <div class="recon-stat-item">
+                        <span class="recon-stat-label">Collected</span>
+                        <span class="recon-stat-value">฿${(rec.total_collected || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="recon-stat-item">
+                        <span class="recon-stat-label">Actual Cost</span>
+                        <span class="recon-stat-value">฿${(rec.total_actual || 0).toLocaleString()}</span>
+                    </div>
+                </div>
+
+                <div class="recon-net">
+                    <div class="recon-net-label">Net Position (${statusLabel})</div>
+                    <div class="recon-net-amount">${isSurplus ? '+' : '-'}฿${Math.abs(surplus).toLocaleString()}</div>
+                </div>
+
+                <div class="recon-actions">
+                    <button class="btn btn-secondary btn-small" style="width: 100%; justify-content: center;"
+                        data-action="showRefundDetail" 
+                        data-name="${rec.participant_name}">
+                        View Breakdown
+                    </button>
+                </div>
+            </div>
         `;
     }).join('');
 }
 
+// === Refund Detail (Modal) ===
 export function renderRefundDetail(data) {
-    const container = document.getElementById('refundDetail');
-    const card = document.getElementById('refundDetailCard');
-    if (!container || !card) return;
+    // Target the shared Details Modal
+    const modal = document.getElementById('detailsModal');
+    const title = document.getElementById('detailsModalTitle');
+    const body = document.getElementById('detailsModalBody');
 
-    card.style.display = 'block';
+    if (!modal || !body) return;
 
-    // Build collected items table
-    const collectedRows = (data.collected_items || []).map(item => `
-        <tr>
-            <td>${item.expense_name}</td>
-            <td>${formatCurrency(item.original_amount, item.currency)}</td>
-            <td>${item.share}</td>
-            <td>฿${(item.collected_thb || 0).toLocaleString()}</td>
-        </tr>
-    `).join('');
+    // Set Title
+    if (title) title.textContent = `Refund Details: ${data.participant_name}`;
 
-    // Build actual items table
-    const actualRows = (data.actual_items || []).map(item => `
-        <tr>
-            <td>${item.expense_name}</td>
-            <td>${formatCurrency(item.paid_amount, item.paid_currency)}</td>
-            <td>${item.share}</td>
-            <td>฿${(item.your_cost_thb || 0).toLocaleString()}</td>
-        </tr>
-    `).join('');
+    // Helper for table rows
+    const renderRows = (items, isPaid = false) => {
+        if (!items || items.length === 0) return '<tr><td colspan="4" class="text-muted text-center">No items</td></tr>';
+
+        return items.map(item => `
+            <tr>
+                <td>${item.expense_name}</td>
+                <td>${formatCurrency(isPaid ? item.paid_amount : item.original_amount, isPaid ? item.paid_currency : item.currency)}</td>
+                <td>${item.share}</td>
+                <td class="text-right">฿${(isPaid ? item.your_cost_thb : item.collected_thb || 0).toLocaleString()}</td>
+            </tr>
+        `).join('');
+    };
+
+    const collectedRows = renderRows(data.collected_items);
+    const actualRows = renderRows(data.actual_items, true);
 
     const refundAmount = data.refund_amount || 0;
-    const isRefund = refundAmount >= 0;
+    const isRefund = refundAmount >= 0; // Positive = Refund Due to person
+    const statusColor = isRefund ? 'text-success' : 'text-danger';
+    const statusLabel = isRefund ? 'Refund Due' : 'Payment Required';
+    const statusIcon = isRefund ? '💰' : '💸';
 
-    container.innerHTML = `
-        <div style="margin-bottom:20px;">
-            <h3>Refund Breakdown for ${data.participant_name}</h3>
-            <p style="color: #a0a0b0;">Trip: ${data.trip_name} | Generated: ${data.generated_at}</p>
-        </div>
-        
-        <div style="margin-bottom: 24px;">
-            <h4 style="color: #4ecdc4; margin-bottom: 12px;">💰 Collected (Budgeted)</h4>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th>Original</th>
-                        <th>Share</th>
-                        <th>Collected THB</th>
-                    </tr>
-                </thead>
-                <tbody>${collectedRows}</tbody>
-            </table>
-            <div style="text-align: right; margin-top: 8px; font-weight: 600; color: #4ecdc4;">
-                Total Collected: ฿${(data.total_collected || 0).toLocaleString()}
+    // 2-Column Grid Layout
+    body.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div>
+                <h3 style="margin: 0;">${data.participant_name}</h3>
+                <p style="color: #a0a0b0; margin: 4px 0 0 0; font-size: 0.9rem;">
+                    Trip: ${data.trip_name || 'N/A'} | Date: ${data.generated_at || new Date().toISOString().split('T')[0]}
+                </p>
+            </div>
+            <div style="text-align: right;">
+                 <h2 class="${statusColor}" style="margin: 0; font-size: 1.8rem;">
+                    ${isRefund ? '+' : '-'}฿${Math.abs(refundAmount).toLocaleString()}
+                 </h2>
+                 <span style="font-size: 0.85rem; color: #a0a0b0; text-transform: uppercase; letter-spacing: 0.05em;">${statusLabel}</span>
             </div>
         </div>
-        
-        <div style="margin-bottom: 24px;">
-            <h4 style="color: #f59e0b; margin-bottom: 12px;">🧾 Actual (Paid)</h4>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th>Paid</th>
-                        <th>Share</th>
-                        <th>Your Cost THB</th>
-                    </tr>
-                </thead>
-                <tbody>${actualRows}</tbody>
-            </table>
-            <div style="text-align: right; margin-top: 8px; font-weight: 600; color: #f59e0b;">
-                Total Actual: ฿${(data.total_actual || 0).toLocaleString()}
+
+        <div class="refund-grid">
+            <!-- Left Column: Collected -->
+            <div class="refund-column">
+                <h4 style="color: #4ecdc4;">
+                    <span>📥</span> Collected (Budget)
+                </h4>
+                <div class="table-responsive-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Orig.</th>
+                                <th>Share</th>
+                                <th class="text-right">THB</th>
+                            </tr>
+                        </thead>
+                        <tbody>${collectedRows}</tbody>
+                    </table>
+                </div>
+                <div class="refund-summary-box" style="color: #4ecdc4;">
+                    Total Collected: ฿${(data.total_collected || 0).toLocaleString()}
+                </div>
+            </div>
+
+            <!-- Right Column: Actual -->
+            <div class="refund-column">
+                <h4 style="color: #f59e0b;">
+                    <span>📤</span> Actual Cost
+                </h4>
+                <div class="table-responsive-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Paid</th>
+                                <th>Share</th>
+                                <th class="text-right">THB</th>
+                            </tr>
+                        </thead>
+                        <tbody>${actualRows}</tbody>
+                    </table>
+                </div>
+                <div class="refund-summary-box" style="color: #f59e0b;">
+                    Total Cost: ฿${(data.total_actual || 0).toLocaleString()}
+                </div>
             </div>
         </div>
-        
-        <div class="total-box ${isRefund ? 'success' : ''}" style="margin-top:20px;">
-            <span class="total-label">${isRefund ? 'Refund Due' : 'Additional Payment Required'}</span>
-            <span class="total-amount ${isRefund ? 'text-success' : 'text-danger'}">
-                ${isRefund ? '+' : '-'}฿${Math.abs(refundAmount).toLocaleString()}
-            </span>
-        </div>
-        <div style="text-align: right; margin-top: 20px;">
-             <button class="btn btn-primary" onclick="window.open('${API_BASE}/refunds/${data.participant_name}/pdf/download', '_blank')">
-                📥 Download Refund Report
+
+        <div style="margin-top: 32px; display: flex; justify-content: flex-end;">
+             <button class="btn btn-primary" onclick="window.open('/api/refunds/${data.participant_name}/pdf/download', '_blank')">
+                📄 Download Official PDF Report
             </button>
         </div>
     `;
+
+    // Show Modal
+    modal.classList.add('show');
 }

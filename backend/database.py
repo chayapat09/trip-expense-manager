@@ -751,7 +751,7 @@ def get_overview_stats() -> Dict[str, Any]:
         cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_thb), 0) FROM receipts")
         receipt_count, receipt_total = cursor.fetchone()
         
-        return {
+    return {
             "total_invoices": inv_count,
             "total_invoiced_amount": round(inv_total, 2),
             "paid_invoices": paid_count,
@@ -760,6 +760,235 @@ def get_overview_stats() -> Dict[str, Any]:
             "unpaid_amount": round(inv_total - paid_total, 2),
             "total_receipts": receipt_count,
             "total_received": round(receipt_total, 2)
+        }
+
+
+def get_cash_flow_stats() -> Dict[str, Any]:
+    """Get daily cash flow statistics (inflows vs outflows)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Outflows (Expenses paid)
+        # We use actual_date for paid expenses
+        cursor.execute("""
+            SELECT actual_date, SUM(actual_thb) 
+            FROM expenses 
+            WHERE status = 'collected' AND actual_date IS NOT NULL 
+            GROUP BY actual_date
+        """)
+        outflows = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Inflows (Receipts generated)
+        # We use the receipt creation date (roughly when money is received/acknowledged)
+        # Or better, we could look at receipt date if we stored it specifically, but created_at is fine for now
+        # Actually created_at is timestamp, let's cast to date
+        cursor.execute("""
+            SELECT date(created_at), SUM(total_thb) 
+            FROM receipts 
+            GROUP BY date(created_at)
+        """)
+        inflows = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Merge dates
+        all_dates = sorted(list(set(outflows.keys()) | set(inflows.keys())))
+        
+        inflow_list = [inflows.get(d, 0) for d in all_dates]
+        outflow_list = [outflows.get(d, 0) for d in all_dates]
+        
+        # Calculate cumulative net flow
+        cumulative = []
+        running_balance = 0
+        for i, o in zip(inflow_list, outflow_list):
+            net = i - o
+            running_balance += net
+            cumulative.append(running_balance)
+        
+        return {
+            "labels": all_dates,
+            "inflow": inflow_list,
+            "outflow": outflow_list,
+            "cumulative": cumulative,
+            "net_position": running_balance
+        }
+
+
+def get_financial_dashboard_data() -> Dict[str, Any]:
+    """Get high-level financial KPIs for the dashboard"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Net Cash Position (Liquid Cash available derived from Trip perspective)
+        # Actually, for a trip manager:
+        # Cash Position = Total Receipts (Money In) - Total Paid Expenses (Money Out)
+        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM receipts")
+        total_inflow = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COALESCE(SUM(actual_thb), 0) FROM expenses WHERE status = 'collected' AND actual_date IS NOT NULL")
+        total_outflow = cursor.fetchone()[0]
+        
+        net_cash_position = total_inflow - total_outflow
+        
+        # 2. Collection Ratio
+        # (Total Collected from Invoices / Total Invoiced Amount)
+        # Note: Receipts are generated from Invoices.
+        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM invoices")
+        total_invoiced = cursor.fetchone()[0]
+        
+        collection_ratio = 0
+        if total_invoiced > 0:
+            collection_ratio = (total_inflow / total_invoiced) * 100
+            
+        # 3. Accounts Receivable (Unpaid Invoices)
+        # We can look at invoices that are NOT fully paid?
+        # A simpler proxy: Total Invoiced - Total Inflow (assuming all receipts link to invoices)
+        ar_amount = total_invoiced - total_inflow
+        if ar_amount < 0: ar_amount = 0 # Safety
+        
+        # 4. Total Spend (COGS / Expenses Incurred)
+        # This is total amount of ALL expenses, regardless of payment status
+        # We need to estimate THB for pending expenses if actual_thb is null?
+        # For now, let's sum 'actual_thb' if exist, else estimate 'amount' * 0.23 (rough) or just 'amount' if THB?
+        # Actually existing stats use sum of invoice items.
+        # Let's sum all expenses.buffer_rate * amount if NO actual, else actual_thb.
+        # But 'amount' * 'buffer_rate' gives approximate cost including buffer.
+        # Let's stick to what we have in `get_overview_stats`: `total_invoiced_amount` is based on expenses assigned to invoices.
+        # Let's query expenses directly for Total Incurred.
+        cursor.execute("""
+            SELECT 
+                SUM(CASE 
+                    WHEN actual_thb IS NOT NULL THEN actual_thb 
+                    WHEN currency = 'THB' THEN amount
+                    ELSE amount * 0.23 -- Fallback rate if buffer_rate missing/weird? No, use buffer_rate
+                END)
+            FROM expenses
+        """)
+        # Actually, better logic:
+        # If actual_thb exists, use it.
+        # If not, use amount * (if currency='JPY' then 0.24 else 1) -- wait buffer_rate is stored.
+        # Let's just use the invoice total as proxy for now, or just sum actual_thb for "Realized Spend".
+        # Let's use "Realized Spend" (Paid) vs "Committed Spend" (Total).
+        
+        # 5. Expense Performance (Planned vs Actual)
+        # Total Budget (Planned) = Sum of (amount * buffer_rate) for all expenses (or rate if THB)
+        cursor.execute("""
+            SELECT SUM(
+                CASE 
+                    WHEN currency = 'THB' THEN amount
+                    ELSE amount * buffer_rate
+                END
+            ) FROM expenses
+        """)
+        total_budget_thb = cursor.fetchone()[0] or 0
+        
+        # Paid Budget (Planned cost of items that are now Paid)
+        cursor.execute("""
+            SELECT SUM(
+                CASE 
+                    WHEN currency = 'THB' THEN amount
+                    ELSE amount * buffer_rate
+                END
+            ) FROM expenses WHERE status = 'collected'
+        """)
+        paid_budget_thb = cursor.fetchone()[0] or 0
+        
+        # Actual Paid (Real cost of items that are Paid)
+        # We already have `total_outflow` which is exactly this (sum of actual_thb for collected expenses)
+        total_actual_paid_thb = total_outflow
+        
+        # Pending Budget (Planned cost of items NOT yet Paid)
+        cursor.execute("""
+            SELECT SUM(
+                CASE 
+                    WHEN currency = 'THB' THEN amount
+                    ELSE amount * buffer_rate
+                END
+            ) FROM expenses WHERE status != 'collected'
+        """)
+        pending_budget_thb = cursor.fetchone()[0] or 0
+        
+        # Variance (Savings) = Paid Budget - Actual Paid
+        # Positive means we spent less than planned (Savings)
+        savings_on_paid = paid_budget_thb - total_actual_paid_thb
+        
+        
+        cursor.execute("SELECT COUNT(*) FROM expenses")
+        total_expenses_count = cursor.fetchone()[0]
+        
+        return {
+            "net_cash_position": round(net_cash_position, 2),
+            "collection_ratio": round(collection_ratio, 1),
+            "accounts_receivable": round(ar_amount, 2),
+            "total_inflow": round(total_inflow, 2),
+            "total_outflow": round(total_outflow, 2),
+            "total_committed_spend": round(total_invoiced, 2), # Using invoiced amount as confirmed spend for now
+            
+            # Expense Performance
+            "total_budget": round(total_budget_thb, 2),
+            "paid_budget": round(paid_budget_thb, 2),
+            "actual_paid": round(total_actual_paid_thb, 2),
+            "pending_budget": round(pending_budget_thb, 2),
+            "savings": round(savings_on_paid, 2)
+        }
+
+
+def get_expense_breakdown() -> Dict[str, Any]:
+    """Get expense breakdown by category (heuristic)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, COALESCE(actual_thb, amount * 0.23) as val FROM expenses")
+        rows = cursor.fetchall()
+        
+        categories = {
+            "Food": 0,
+            "Transport": 0,
+            "Accommodation": 0,
+            "Shopping": 0,
+            "Entertainment": 0,
+            "General": 0
+        }
+        
+        keywords = {
+            "Food": ["sushi", "ramen", "dinner", "lunch", "breakfast", "cafe", "coffee", "7-11", "lawson", "family mart", "tea", "food", "snack", "beer", "water"],
+            "Transport": ["train", "bus", "taxi", "uber", "grab", "flight", "shinkansen", "subway", "metro", "suica"],
+            "Accommodation": ["hotel", "airbnb", "booking", "agoda", "hostel", "room"],
+            "Shopping": ["gift", "souvenir", "shop", "mall", "donki", "uniqlo"],
+            "Entertainment": ["ticket", "entry", "museum", "park", "disney", "universal", "show"]
+        }
+        
+        for name, amount in rows:
+            lower_name = name.lower()
+            matched = False
+            for cat, words in keywords.items():
+                if any(w in lower_name for w in words):
+                    categories[cat] += amount
+                    matched = True
+                    break
+            if not matched:
+                categories["General"] += amount
+                
+        # Filter out zero categories and format for Chart.js
+        labels = []
+        data = []
+        colors = []
+        color_map = {
+            "Food": "#fbbf24", # Amber
+            "Transport": "#60a5fa", # Blue
+            "Accommodation": "#8b5cf6", # Purple
+            "Shopping": "#f472b6", # Pink
+            "Entertainment": "#f87171", # Red
+            "General": "#9ca3af" # Gray
+        }
+        
+        for cat, amount in categories.items():
+            if amount > 0:
+                labels.append(cat)
+                data.append(round(amount, 2))
+                colors.append(color_map.get(cat, "#ccc"))
+                
+        return {
+            "labels": labels,
+            "data": data,
+            "colors": colors
         }
 
 

@@ -60,6 +60,9 @@ def get_overview():
     """Get all invoices, receipts, and stats for overview page"""
     return {
         "stats": db.get_overview_stats(),
+        "cash_flow": db.get_cash_flow_stats(),
+        "financial_dashboard": db.get_financial_dashboard_data(),
+        "expense_breakdown": db.get_expense_breakdown(),
         "invoices": db.get_all_invoices_with_status(),
         "receipts": db.get_all_receipts()
     }

@@ -24,7 +24,7 @@ export function showToast(message, type = 'info') {
 export function setupTabs(loadCallback) {
     // Function to activate a tab by ID
     const activateTab = (tabId) => {
-        const validTabs = ['expenses', 'invoices', 'receipts', 'refunds', 'overview'];
+        const validTabs = ['expenses', 'invoices', 'receipts', 'payments', 'refunds', 'overview'];
         if (!validTabs.includes(tabId)) tabId = 'expenses';
 
         document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
@@ -34,7 +34,7 @@ export function setupTabs(loadCallback) {
         if (tabBtn) tabBtn.classList.add('active');
         if (tabContent) tabContent.classList.add('active');
 
-        if (tabId === 'refunds' || tabId === 'overview' || tabId === 'invoices' || tabId === 'receipts') {
+        if (tabId === 'refunds' || tabId === 'overview' || tabId === 'invoices' || tabId === 'receipts' || tabId === 'payments') {
             loadCallback(tabId);
         }
     };
@@ -355,9 +355,23 @@ export function setupModals(refreshCallback) {
     const detailsModal = document.getElementById('detailsModal');
     if (detailsModal) {
         const closers = document.querySelectorAll('#closeDetailsBtn, #closeDetailsBtnFooter');
-        closers.forEach(btn => btn.onclick = () => detailsModal.classList.remove('show'));
+
+        const closeModal = () => {
+            detailsModal.classList.remove('show');
+            detailsModal.classList.remove('active');
+
+            // Clear hash if it's a detail route
+            const hash = window.location.hash;
+            if (hash.match(/#(expense|invoice|receipt|refund)\//)) {
+                const route = hash.slice(1).split('/')[0];
+                const baseTab = (route === 'refund') ? 'refunds' : (route + 's');
+                window.location.hash = baseTab;
+            }
+        };
+
+        closers.forEach(btn => btn.onclick = closeModal);
         window.addEventListener('click', (e) => {
-            if (e.target === detailsModal) detailsModal.classList.remove('show');
+            if (e.target === detailsModal) closeModal();
         });
     }
 

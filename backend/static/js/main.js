@@ -1,7 +1,7 @@
 import { apiCall } from './api.js';
 import * as Store from './store.js';
-import * as Renderers from './renderers.js?v=7';
-import * as UI from './ui.js?v=5';
+import * as Renderers from './renderers.js?v=8';
+import * as UI from './ui.js?v=6';
 import { isAdmin, logout, setToken, validateToken, applyAuthRestrictions, verifyStoredToken } from './auth.js';
 
 async function loadData(type = 'all') {
@@ -41,6 +41,12 @@ async function loadData(type = 'all') {
         if (type === 'refunds') {
             const data = await apiCall('/refunds/reconciliation');
             Renderers.renderReconciliationTable(data);
+        }
+        if (type === 'payments') {
+            // Re-fetch expenses to get latest payment status
+            const exps = await apiCall('/expenses');
+            Store.setExpenses(exps);
+            Renderers.renderPaymentsTab(exps);
         }
     } catch (error) {
         console.error('Load Error', error);

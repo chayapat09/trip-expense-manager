@@ -127,6 +127,17 @@ body {
     color: white;
 }
 
+.btn-secondary {
+    background: rgba(108, 117, 125, 0.2);
+    color: #e5e7eb;
+    border: 1px solid rgba(108, 117, 125, 0.3);
+}
+
+.btn-secondary:hover {
+    background: rgba(108, 117, 125, 0.4);
+    border-color: rgba(108, 117, 125, 0.5);
+}
+
 .btn-icon {
     width: 40px;
     height: 40px;
@@ -564,8 +575,8 @@ body {
 }
 
 .total-box {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -577,24 +588,24 @@ body {
 .total-label {
     font-size: 0.9rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--text-secondary);
     text-transform: uppercase;
 }
 
 .total-amount {
     font-size: 1.5rem;
     font-weight: 800;
-    color: #111827;
+    color: var(--text-primary);
     font-feature-settings: "tnum";
 }
 
 .total-box.success {
-    background: #ecfdf5;
-    border-color: #a7f3d0;
+    background: rgba(5, 150, 105, 0.2);
+    border-color: rgba(5, 150, 105, 0.5);
 }
 
 .total-box.success .total-amount {
-    color: #059669;
+    color: var(--accent-success);
 }
 
 /* === Modal === */
@@ -1476,4 +1487,168 @@ html {
     .tabs {
         margin-bottom: 12px;
     }
+}
+
+/* === Reconciliation Grid === */
+.reconciliation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.recon-card {
+    background: rgba(30, 30, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recon-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.recon-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.recon-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.recon-info h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+.recon-info p {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    color: #a0a0b0;
+}
+
+.recon-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+}
+
+.recon-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recon-stat-label {
+    font-size: 0.75rem;
+    color: #a0a0b0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.recon-stat-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.recon-net {
+    text-align: center;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.recon-net-label {
+    font-size: 0.85rem;
+    color: #a0a0b0;
+    margin-bottom: 4px;
+}
+
+.recon-net-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.recon-actions {
+    margin-top: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.recon-card.surplus .recon-net-amount {
+    color: #4ade80;
+}
+
+.recon-card.deficit .recon-net-amount {
+    color: #f87171;
+}
+
+.recon-card.balanced .recon-net-amount {
+    color: #9ca3af;
+
+}
+
+/* === Refund Details Modal === */
+.refund-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 768px) {
+    .refund-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.refund-column h4 {
+    margin-bottom: 16px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.refund-column table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.refund-column .data-table td {
+    padding: 10px 8px;
+    font-size: 0.85rem;
+}
+
+.refund-summary-box {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    text-align: right;
+    font-weight: 600;
 }
