@@ -30,6 +30,17 @@ def export_database(x_admin_token: Optional[str] = Header(None)):
     zip_buffer = io.BytesIO()
     
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        # Add metadata
+        import json
+        from datetime import datetime
+        from version import APP_VERSION
+        
+        metadata = {
+            "version": APP_VERSION,
+            "exported_at": datetime.now().isoformat()
+        }
+        zip_file.writestr("metadata.json", json.dumps(metadata, indent=2))
+
         for table in tables:
             cursor.execute(f"SELECT * FROM {table}")
             rows = cursor.fetchall()

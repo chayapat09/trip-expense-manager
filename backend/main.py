@@ -12,7 +12,7 @@ from typing import Optional
 import os
 
 # Import routers
-from routes import settings, participants, expenses, invoices, refunds, receipts, export
+from routes import settings, participants, expenses, invoices, refunds, receipts, export, import_db
 
 # Import database to initialize on startup
 import database
@@ -21,6 +21,9 @@ import database
 from auth import ADMIN_TOKEN, verify_admin_token
 
 
+# Import version
+from version import APP_VERSION
+
 class LoginRequest(BaseModel):
     token: str
 
@@ -28,7 +31,7 @@ class LoginRequest(BaseModel):
 app = FastAPI(
     title="Trip Expense Manager",
     description="API for managing group travel expenses with currency conversion and PDF invoices",
-    version="1.0.0"
+    version=APP_VERSION
 )
 
 
@@ -79,6 +82,7 @@ app.include_router(invoices.router)
 app.include_router(refunds.router)
 app.include_router(receipts.router)
 app.include_router(export.router)
+app.include_router(import_db.router)
 
 
 # ========================

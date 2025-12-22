@@ -331,7 +331,60 @@ export function setupModals(refreshCallback) {
                 btn.textContent = originalText;
                 btn.disabled = false;
             }
+
         });
+
+        // Import Database
+        const importBtn = document.getElementById('importDbBtn');
+        const importInput = document.getElementById('importDbInput');
+
+        if (importBtn && importInput) {
+            importBtn.addEventListener('click', () => {
+                if (!confirm("⚠️ WARNING: Importing a backup will COMPLETELY OVERWRITE all current data! This action cannot be undone.\n\nAre you sure you want to proceed?")) return;
+                importInput.click();
+            });
+
+            importInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const token = localStorage.getItem('adminToken');
+                if (!token) return showToast('Admin authentication required', 'error');
+
+                const importBtnLabel = importBtn.textContent;
+                importBtn.textContent = 'Importing...';
+                importBtn.disabled = true;
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/api/import/db', {
+                        method: 'POST',
+                        headers: {
+                            'X-Admin-Token': token
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) throw new Error(result.detail || 'Import failed');
+
+                    alert("✅ Database restored successfully! The page will now reload.");
+                    window.location.reload();
+
+                } catch (error) {
+                    console.error('Import error:', error);
+                    showToast(error.message, 'error');
+                    importInput.value = ''; // Reset input
+                } finally {
+                    importBtn.textContent = importBtnLabel;
+                    importBtn.disabled = false;
+                }
+            });
+        }
+
         // Add Participant
         const addPartBtn = document.getElementById('addParticipantBtn');
         if (addPartBtn) {
