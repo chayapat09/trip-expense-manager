@@ -316,10 +316,16 @@ def get_admin_dashboard_stats() -> List[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.cursor()
         # Use subqueries to avoid Cartesian products in joins
+        # Total spend calculation: THB = amount, JPY = amount * buffer_rate (exchange rate)
         cursor.execute("""
             SELECT t.*,
                 (SELECT COUNT(*) FROM participants WHERE trip_id = t.id) as participant_count,
-                (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE trip_id = t.id) as total_spend,
+                (SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN currency = 'THB' THEN amount
+                        ELSE amount * buffer_rate
+                    END
+                ), 0) FROM expenses WHERE trip_id = t.id) as total_spend,
                 (SELECT COUNT(*) FROM expenses WHERE trip_id = t.id) as expense_count
             FROM trips t
             ORDER BY t.created_at DESC
