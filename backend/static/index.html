@@ -20,7 +20,38 @@
         </div>
     </div>
 
-    <div class="app">
+    <div id="createTripLoader" class="global-loader">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Creating Trip...</p>
+        </div>
+    </div>
+
+    <!-- Landing Page -->
+    <div id="landingPage" class="landing-page active">
+        <div class="landing-card">
+            <h1 class="landing-brand">🧳 Nine Travel</h1>
+            <p class="landing-subtitle">Simple Group Expense Management</p>
+
+            <div class="join-section" style="margin-top: 32px;">
+                <p>Have a trip link?</p>
+                <div class="join-input-group">
+                    <input type="text" id="tripLinkInput" placeholder="Paste trip URL here...">
+                    <button id="joinTripBtn" class="btn btn-secondary">Join</button>
+                </div>
+            </div>
+
+            <div class="landing-divider">
+                <span>or</span>
+            </div>
+
+            <div class="admin-access-section" style="text-align: center;">
+                <a href="/admin" class="btn btn-secondary" style="width: 100%;">🛡️ Admin Access</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="app" id="mainApp" style="display: none;">
         <!-- Header -->
         <header class="header">
             <div class="header-content">
@@ -30,6 +61,7 @@
                 </div>
                 <div class="header-actions">
                     <span class="trip-name" id="tripName">Japan Trip 2025</span>
+                    <button class="btn btn-icon" id="shareTripBtn" title="Share Trip Link">🔗</button>
                     <button class="btn btn-auth btn-login" id="authBtn" title="Login as admin">🔒 Login</button>
                     <button class="btn btn-icon admin-only" id="settingsBtn" title="Settings">⚙️</button>
                 </div>
@@ -284,6 +316,27 @@
                     </div>
                 </div>
             </section>
+        </main>
+    </div>
+
+    <!-- Admin Dashboard Page -->
+    <div id="adminPage" class="admin-page hidden">
+        <header class="admin-header">
+            <div class="admin-header-content">
+                <div class="admin-brand">
+                    <h1>🛡️ Admin Dashboard</h1>
+                    <span class="admin-subtitle">All Trips Overview</span>
+                </div>
+                <div class="admin-actions">
+                    <button id="createTripBtn" class="btn btn-primary">🚀 Create New Trip</button>
+                    <a href="/" class="btn btn-secondary">← Back to Home</a>
+                </div>
+            </div>
+        </header>
+        <main class="admin-main">
+            <div class="trip-cards-grid" id="tripCardsGrid">
+                <!-- Populated by JS -->
+            </div>
         </main>
     </div>
 

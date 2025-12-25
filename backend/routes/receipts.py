@@ -1,7 +1,7 @@
 """
 Receipt routes - Payment confirmation PDFs
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import FileResponse
 from datetime import datetime
 from typing import Optional
@@ -15,10 +15,10 @@ router = APIRouter(prefix="/api/receipts", tags=["receipts"])
 
 
 @router.get("/")
-def get_receipts():
+def get_receipts(x_trip_id: str = Header(...)):
     """Get all receipts for list view"""
     return {
-        "receipts": database.get_all_receipts()
+        "receipts": database.get_all_receipts(x_trip_id)
     }
 
 
@@ -93,14 +93,14 @@ def download_receipt_by_id(receipt_id: int):
 
 
 @router.get("/{participant_name}")
-def get_receipt_data(participant_name: str, payment_method: Optional[str] = None):
+def get_receipt_data(participant_name: str, payment_method: Optional[str] = None, x_trip_id: str = Header(...)):
     """Get receipt data for unpaid invoices"""
-    participant = database.get_participant_by_name(participant_name)
+    participant = database.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
     participant_id = participant['id']
-    settings = database.get_settings()
+    settings = database.get_settings(x_trip_id)
     
     # Get unpaid invoices
     unpaid_invoices = database.get_unpaid_invoices(participant_id)
@@ -148,14 +148,14 @@ def get_receipt_data(participant_name: str, payment_method: Optional[str] = None
 
 
 @router.post("/{participant_name}/generate")
-def generate_receipt(participant_name: str, request: ReceiptGenerationRequest):
+def generate_receipt(participant_name: str, request: ReceiptGenerationRequest, x_trip_id: str = Header(...)):
     """Generate receipt PDF for selected unpaid invoices"""
-    participant = database.get_participant_by_name(participant_name)
+    participant = database.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
     participant_id = participant['id']
-    settings = database.get_settings()
+    settings = database.get_settings(x_trip_id)
     
     # Get all unpaid invoices
     all_unpaid = database.get_unpaid_invoices(participant_id)
@@ -190,6 +190,7 @@ def generate_receipt(participant_name: str, request: ReceiptGenerationRequest):
     
     # 1. Create Receipt Record Placeholder
     receipt_id = database.create_receipt(
+        trip_id=x_trip_id,
         participant_id=participant_id,
         receipt_number=0, # Placeholder
         total_thb=round(total, 2),
@@ -225,9 +226,9 @@ def generate_receipt(participant_name: str, request: ReceiptGenerationRequest):
 
 
 @router.get("/{participant_name}/pdf")
-def download_receipt(participant_name: str):
+def download_receipt(participant_name: str, x_trip_id: str = Header(...)):
     """Download the latest receipt PDF"""
-    participant = database.get_participant_by_name(participant_name)
+    participant = database.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
@@ -244,9 +245,9 @@ def download_receipt(participant_name: str):
 
 
 @router.get("/{participant_name}/history")
-def get_receipt_history(participant_name: str):
+def get_receipt_history(participant_name: str, x_trip_id: str = Header(...)):
     """Get receipt history for a participant"""
-    participant = database.get_participant_by_name(participant_name)
+    participant = database.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     

@@ -1,7 +1,7 @@
 """
 Expenses API routes
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from typing import List
 from schemas import ExpenseCreate, ExpenseUpdate, ExpenseStatusUpdate, ExpenseResponse, LogPaymentRequest
 import database as db
@@ -32,9 +32,9 @@ def calculate_expense_amounts(expense: dict) -> dict:
 
 
 @router.get("", response_model=List[ExpenseResponse])
-def get_expenses():
+def get_expenses(x_trip_id: str = Header(...)):
     """Get all expenses with calculated amounts"""
-    expenses = db.get_all_expenses()
+    expenses = db.get_all_expenses(x_trip_id)
     return [calculate_expense_amounts(e) for e in expenses]
 
 
@@ -48,12 +48,13 @@ def get_expense(expense_id: int):
 
 
 @router.post("", response_model=ExpenseResponse)
-def create_expense(data: ExpenseCreate):
+def create_expense(data: ExpenseCreate, x_trip_id: str = Header(...)):
     """Create a new expense"""
     if not data.participant_ids:
         raise HTTPException(status_code=400, detail="At least one participant required")
     
     expense_id = db.add_expense(
+        trip_id=x_trip_id,
         name=data.name,
         amount=data.amount,
         currency=data.currency,

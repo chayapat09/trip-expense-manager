@@ -12,7 +12,7 @@ from typing import Optional
 import os
 
 # Import routers
-from routes import settings, participants, expenses, invoices, refunds, receipts, export, import_db
+from routes import settings, participants, expenses, invoices, refunds, receipts, export, import_db, trips
 
 # Import database to initialize on startup
 import database
@@ -38,8 +38,8 @@ app = FastAPI(
 # Authentication middleware to protect mutating endpoints
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Allow all GET requests (read-only)
-        if request.method == "GET":
+        # Allow all GET and HEAD requests (read-only)
+        if request.method in ["GET", "HEAD"]:
             return await call_next(request)
         
         # Allow auth endpoints
@@ -50,13 +50,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
         
-        # For mutating operations, require valid token
+        # For mutating operations:
+        
+        # 1. Allow if valid Global Admin Token
         token = request.headers.get("X-Admin-Token")
-        if not verify_admin_token(token):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Admin authentication required. Please login to perform this action."}
-            )
+        if verify_admin_token(token):
+            return await call_next(request)
+            
+        # 2. Allow if X-Trip-ID is present (Capability URL access)
+        if request.headers.get("X-Trip-ID"):
+            return await call_next(request)
+
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Authentication required. Please provide a Trip ID or Admin Token."}
+        )
         
         return await call_next(request)
 
@@ -81,6 +89,7 @@ app.include_router(expenses.router)
 app.include_router(invoices.router)
 app.include_router(refunds.router)
 app.include_router(receipts.router)
+app.include_router(trips.router)
 app.include_router(export.router)
 app.include_router(import_db.router)
 
@@ -129,6 +138,24 @@ def root():
         "version": "1.0.0",
         "message": "Frontend not found. API is running."
     }
+
+
+@app.get("/admin")
+def serve_admin():
+    """Serve SPA for admin dashboard"""
+    index_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse(status_code=404, content={"message": "Frontend not found"})
+
+
+@app.get("/t/{full_path:path}")
+def serve_spa(full_path: str):
+    """Serve SPA for trip routes"""
+    index_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse(status_code=404, content={"message": "Frontend not found"})
 
 
 @app.get("/health")

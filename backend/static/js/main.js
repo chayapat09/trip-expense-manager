@@ -1,7 +1,7 @@
-import { apiCall } from './api.js';
+import { apiCall, setTripId } from './client_api.js';
 import * as Store from './store.js';
-import * as Renderers from './renderers.js?v=8';
-import * as UI from './ui.js?v=6';
+import * as Renderers from './renderers.js';
+import * as UI from './ui.js';
 import { isAdmin, logout, setToken, validateToken, applyAuthRestrictions, verifyStoredToken } from './auth.js';
 
 async function loadData(type = 'all') {
@@ -10,6 +10,8 @@ async function loadData(type = 'all') {
             const settings = await apiCall('/settings');
             Store.setSettings(settings);
             document.getElementById('tripName').textContent = settings.trip_name;
+            // Update page title
+            document.title = `${settings.trip_name} - Nine Travel`;
             const bufferInput = document.getElementById('bufferRate');
             if (bufferInput) bufferInput.value = settings.default_buffer_rate || 0.25;
         }
@@ -27,6 +29,7 @@ async function loadData(type = 'all') {
         }
 
         if (type === 'overview') {
+            // Fetch overview data
             const data = await apiCall('/invoices/overview/all');
             Renderers.renderOverview(data);
         }
@@ -127,7 +130,37 @@ function setupAuthHandlers() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+// === Landing Page Logic ===
+function setupLandingPage() {
+    const joinBtn = document.getElementById('joinTripBtn');
+    const linkInput = document.getElementById('tripLinkInput');
+
+    joinBtn?.addEventListener('click', () => {
+        const input = linkInput.value.trim();
+        if (!input) return;
+
+        // Extract ID from URL
+        // Support full URL or just ID
+        // URL pattern: .../t/{id}
+        let tripId = input;
+
+        // Simple regex to find /t/UUID
+        const match = input.match(/\/t\/([a-zA-Z0-9-]+)/);
+        if (match) {
+            tripId = match[1];
+        }
+
+        if (tripId) {
+            window.location.href = `/t/${tripId}`;
+        } else {
+            alert("Invalid link format.");
+        }
+    });
+}
+
+async function initApp(tripId) {
+    setTripId(tripId);
+
     // Verify stored token on page load
     await verifyStoredToken();
 
@@ -146,10 +179,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup auth handlers
     setupAuthHandlers();
 
+    // Share Button Logic
+    document.getElementById('shareTripBtn')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(window.location.href);
+        UI.showToast('Trip link copied to clipboard!', 'success');
+    });
+
+    // Show app, hide landing
+    document.getElementById('landingPage').classList.remove('active');
+    document.getElementById('mainApp').style.display = 'block';
+
     // Hide Loader
     setTimeout(() => {
         const loader = document.getElementById('globalLoader');
         if (loader) loader.classList.remove('active');
     }, 500);
+}
+
+function handleRouting() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/t\/([a-zA-Z0-9-]+)/);
+
+    if (match) {
+        // We have a trip ID
+        const tripId = match[1];
+        initApp(tripId);
+    } else if (path === '/admin') {
+        // Admin Dashboard
+        document.getElementById('globalLoader').classList.remove('active');
+        document.getElementById('landingPage').classList.remove('active');
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('adminPage').classList.remove('hidden');
+
+        loadAdminDashboard();
+    } else {
+        // Show Landing Page
+        document.getElementById('globalLoader').classList.remove('active');
+        document.getElementById('landingPage').classList.add('active');
+        document.getElementById('mainApp').style.display = 'none';
+        setupLandingPage();
+    }
+}
+
+async function loadAdminDashboard() {
+    // Check if logged in
+    if (!isAdmin()) {
+        const token = prompt("Admin Access Required. Please enter Admin Token:");
+        if (token) {
+            const isValid = await validateToken(token);
+            if (isValid) {
+                setToken(token);
+            } else {
+                alert("Invalid Token");
+                window.location.href = '/';
+                return;
+            }
+        } else {
+            window.location.href = '/';
+            return;
+        }
+    }
+
+    // Setup Create Trip button on admin page (do this first)
+    const createBtn = document.getElementById('createTripBtn');
+    if (createBtn) {
+        createBtn.addEventListener('click', async () => {
+            const name = prompt("Enter a name for your trip:");
+            if (!name) return;
+
+            createBtn.textContent = "Creating...";
+            createBtn.disabled = true;
+
+            try {
+                const res = await apiCall('/trips', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
+
+                if (res.id) {
+                    UI.showToast(`Trip "${name}" created!`, 'success');
+                    // Reload dashboard to show new trip
+                    const newStats = await apiCall('/trips/admin/dashboard');
+                    Renderers.renderAdminDashboard(newStats);
+                }
+            } catch (e) {
+                alert("Error creating trip: " + e.message);
+            } finally {
+                createBtn.textContent = "🚀 Create New Trip";
+                createBtn.disabled = false;
+            }
+        });
+    }
+
+    // Load dashboard data
+    try {
+        const stats = await apiCall('/trips/admin/dashboard');
+        Renderers.renderAdminDashboard(stats);
+    } catch (err) {
+        console.error("Failed to load admin dashboard", err);
+        UI.showToast("Failed to load admin data", "error");
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    handleRouting();
 });
 

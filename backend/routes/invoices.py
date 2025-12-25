@@ -1,7 +1,7 @@
 """
 Invoices API routes - versioned invoices with PDF generation
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import FileResponse
 from datetime import datetime
 from typing import List
@@ -15,10 +15,10 @@ router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
 
 @router.get("/")
-def get_invoices():
+def get_invoices(x_trip_id: str = Header(...)):
     """Get all invoices for list view"""
     return {
-        "invoices": db.get_all_invoices_with_status()
+        "invoices": db.get_all_invoices_with_status(x_trip_id)
     }
 
 
@@ -56,15 +56,15 @@ def get_invoice_details(invoice_id: int):
 
 
 @router.get("/overview/all")
-def get_overview():
+def get_overview(x_trip_id: str = Header(...)):
     """Get all invoices, receipts, and stats for overview page"""
     return {
-        "stats": db.get_overview_stats(),
-        "cash_flow": db.get_cash_flow_stats(),
-        "financial_dashboard": db.get_financial_dashboard_data(),
-        "expense_breakdown": db.get_expense_breakdown(),
-        "invoices": db.get_all_invoices_with_status(),
-        "receipts": db.get_all_receipts()
+        "stats": db.get_overview_stats(x_trip_id),
+        "cash_flow": db.get_cash_flow_stats(x_trip_id),
+        "financial_dashboard": db.get_financial_dashboard_data(x_trip_id),
+        "expense_breakdown": db.get_expense_breakdown(x_trip_id),
+        "invoices": db.get_all_invoices_with_status(x_trip_id),
+        "receipts": db.get_all_receipts(x_trip_id)
     }
 
 
@@ -122,9 +122,9 @@ def calculate_expense_share(expense: dict, participant_id: int) -> InvoiceExpens
 
 
 @router.get("/{participant_name}")
-def get_invoice_data(participant_name: str) -> InvoiceData:
+def get_invoice_data(participant_name: str, x_trip_id: str = Header(...)) -> InvoiceData:
     """Get invoice data for a participant (without generating PDF)"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
@@ -167,9 +167,9 @@ def get_invoice_data(participant_name: str) -> InvoiceData:
 
 
 @router.post("/{participant_name}/generate")
-def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = None):
+def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = None, x_trip_id: str = Header(...)):
     """Generate and save a new invoice version, returning PDF download link"""
-    invoice_data = get_invoice_data(participant_name)
+    invoice_data = get_invoice_data(participant_name, x_trip_id)
     
     if not invoice_data.has_new_expenses:
         raise HTTPException(status_code=400, detail="No new expenses to invoice")
@@ -192,14 +192,15 @@ def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = 
             has_new_expenses=True
         )
     
-    participant = db.get_participant_by_name(participant_name)
-    settings = db.get_settings()
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
+    settings = db.get_settings(x_trip_id)
     
     # 1. create placeholder invoice to get ID
     expense_ids = [item.expense_id for item in invoice_data.new_expenses]
     
     # We pass 0 as temporary version, and empty PDF path
     invoice_id = db.create_invoice(
+        trip_id=x_trip_id,
         participant_id=participant['id'],
         version=0, 
         total_thb=invoice_data.this_invoice_total,
@@ -234,9 +235,9 @@ def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = 
 
 
 @router.get("/{participant_name}/pdf")
-def download_latest_invoice(participant_name: str):
+def download_latest_invoice(participant_name: str, x_trip_id: str = Header(...)):
     """Download the latest invoice PDF for a participant"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
@@ -256,9 +257,9 @@ def download_latest_invoice(participant_name: str):
 
 
 @router.get("/{participant_name}/history")
-def get_invoice_history(participant_name: str):
+def get_invoice_history(participant_name: str, x_trip_id: str = Header(...)):
     """Get all previous invoices for a participant"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     

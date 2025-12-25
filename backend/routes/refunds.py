@@ -1,7 +1,7 @@
 """
 Refunds API routes - reconciliation and refund PDF generation
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import FileResponse
 from datetime import datetime
 from typing import List
@@ -12,9 +12,9 @@ from pdf_generator import pdf_generator
 router = APIRouter(prefix="/api/refunds", tags=["refunds"])
 
 
-def calculate_participant_refund(participant_id: int, participant_name: str) -> RefundData:
+def calculate_participant_refund(trip_id: str, participant_id: int, participant_name: str) -> RefundData:
     """Calculate detailed refund data for a participant"""
-    settings = db.get_settings()
+    settings = db.get_settings(trip_id)
     
     # Get all expenses for participant
     expenses = db.get_participant_expenses(participant_id)
@@ -82,13 +82,13 @@ def calculate_participant_refund(participant_id: int, participant_name: str) -> 
 
 
 @router.get("/reconciliation")
-def get_reconciliation() -> List[ReconciliationItem]:
+def get_reconciliation(x_trip_id: str = Header(...)) -> List[ReconciliationItem]:
     """Get reconciliation summary for all participants"""
-    participants = db.get_all_participants()
+    participants = db.get_all_participants(x_trip_id)
     results = []
     
     for p in participants:
-        refund_data = calculate_participant_refund(p['id'], p['name'])
+        refund_data = calculate_participant_refund(x_trip_id, p['id'], p['name'])
         results.append(ReconciliationItem(
             participant_name=p['name'],
             total_collected=refund_data.total_collected,
@@ -100,23 +100,23 @@ def get_reconciliation() -> List[ReconciliationItem]:
 
 
 @router.get("/{participant_name}")
-def get_refund_data(participant_name: str) -> RefundData:
+def get_refund_data(participant_name: str, x_trip_id: str = Header(...)) -> RefundData:
     """Get detailed refund data for a participant"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    return calculate_participant_refund(participant['id'], participant_name)
+    return calculate_participant_refund(x_trip_id, participant['id'], participant_name)
 
 
 @router.post("/{participant_name}/pdf")
-def generate_refund_pdf(participant_name: str):
+def generate_refund_pdf(participant_name: str, x_trip_id: str = Header(...)):
     """Generate refund statement PDF for a participant"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    refund_data = calculate_participant_refund(participant['id'], participant_name)
+    refund_data = calculate_participant_refund(x_trip_id, participant['id'], participant_name)
     
     # Generate PDF
     pdf_path = pdf_generator.generate_refund_pdf(refund_data)
@@ -129,13 +129,13 @@ def generate_refund_pdf(participant_name: str):
 
 
 @router.get("/{participant_name}/pdf/download")
-def download_refund_pdf(participant_name: str):
+def download_refund_pdf(participant_name: str, x_trip_id: str = Header(...)):
     """Generate and download refund PDF directly"""
-    participant = db.get_participant_by_name(participant_name)
+    participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    refund_data = calculate_participant_refund(participant['id'], participant_name)
+    refund_data = calculate_participant_refund(x_trip_id, participant['id'], participant_name)
     pdf_path = pdf_generator.generate_refund_pdf(refund_data)
     
     return FileResponse(

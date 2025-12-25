@@ -1,4 +1,4 @@
-import { apiCall, API_BASE } from './api.js';
+import { apiCall, API_BASE } from './client_api.js';
 import * as Renderers from './renderers.js';
 import { store } from './store.js';
 

@@ -1,5 +1,5 @@
 import { store } from './store.js';
-import { API_BASE } from './api.js';
+import { API_BASE } from './client_api.js';
 import { formatCurrency, formatDate } from './utils.js';
 
 // === Participants ===
@@ -1095,4 +1095,83 @@ export function renderRefundDetail(data) {
 
     // Show Modal
     modal.classList.add('show');
+}
+
+// === Admin Dashboard ===
+export function renderAdminDashboard(trips) {
+    const grid = document.getElementById('tripCardsGrid');
+    if (!grid) return;
+
+    if (!trips || trips.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+                <div class="empty-state-icon" style="font-size: 4rem; margin-bottom: 20px;">🏝️</div>
+                <h3 style="margin-bottom: 12px; color: #e2e8f0;">No Trips Yet</h3>
+                <p style="color: #a0a0b0; margin-bottom: 24px;">Create your first trip to get started!</p>
+                <a href="/" class="btn btn-primary">← Go to Home</a>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = trips.map(trip => {
+        const initial = trip.name ? trip.name.charAt(0).toUpperCase() : '🧳';
+        const createdDate = trip.created_at ? new Date(trip.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        }) : 'N/A';
+
+        const participantCount = trip.participant_count || 0;
+        const totalSpend = trip.total_spend || 0;
+        const expenseCount = trip.expense_count || 0;
+
+        // Determine gradient color based on index or trip name hash
+        const gradients = [
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)'
+        ];
+        const gradientIndex = trip.name ? trip.name.charCodeAt(0) % gradients.length : 0;
+        const gradient = gradients[gradientIndex];
+
+        return `
+            <div class="trip-card">
+                <div class="trip-card-header" style="background: ${gradient};">
+                    <div class="trip-card-avatar">${initial}</div>
+                    <div class="trip-card-info">
+                        <h3 class="trip-card-name">${trip.name}</h3>
+                        <span class="trip-card-date">Created ${createdDate}</span>
+                    </div>
+                </div>
+                <div class="trip-card-body">
+                    <div class="trip-card-stats">
+                        <div class="trip-stat">
+                            <span class="trip-stat-icon">👥</span>
+                            <span class="trip-stat-value">${participantCount}</span>
+                            <span class="trip-stat-label">Participants</span>
+                        </div>
+                        <div class="trip-stat">
+                            <span class="trip-stat-icon">💰</span>
+                            <span class="trip-stat-value">${expenseCount}</span>
+                            <span class="trip-stat-label">Expenses</span>
+                        </div>
+                        <div class="trip-stat">
+                            <span class="trip-stat-icon">💵</span>
+                            <span class="trip-stat-value">฿${totalSpend.toLocaleString()}</span>
+                            <span class="trip-stat-label">Total Spend</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="trip-card-footer">
+                    <a href="/t/${trip.id}" class="btn btn-primary btn-block">
+                        🚀 Enter Trip
+                    </a>
+                </div>
+            </div>
+        `;
+    }).join('');
 }

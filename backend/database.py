@@ -6,6 +6,7 @@ import sqlite3
 import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import uuid
 from contextlib import contextmanager
 
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), "data", "trip_expenses.db")
@@ -40,51 +41,58 @@ def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Settings table
+        # 1. Trips table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trips (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # 2. Add trip_id to existing tables if missing
+        tables = ['settings', 'participants', 'expenses', 'invoices', 'receipts']
+        for table in tables:
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = [info[1] for info in cursor.fetchall()]
+            if 'trip_id' not in columns:
+                print(f"Adding trip_id column to {table}...")
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN trip_id TEXT")
+                # Note: We cannot easily add FOREIGN KEY constraint to existing table in SQLite without recreating it.
+                # simpler to just have the column for now and enforce in app logic or recreate tables in a proper migration.
+                # For this task, we will rely on app logic + future migrations if strictness needed.
+        
+        # 3. Settings table (ensure it exists)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY,
+                trip_id TEXT,
                 default_buffer_rate REAL DEFAULT 0.25,
                 trip_name TEXT DEFAULT 'Japan Trip 2025'
             )
         """)
         
-        # Insert default settings if not exists
-        cursor.execute("SELECT COUNT(*) FROM settings")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute(
-                "INSERT INTO settings (id, default_buffer_rate, trip_name) VALUES (1, 0.25, 'Japan Trip 2025')"
-            )
-        
-        # Participants table
+        # 4. Participants table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS participants (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
+                trip_id TEXT,
+                name TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Insert default participants
-        default_participants = ['Nine', 'Nam', 'Team', 'Ti', 'Thep']
-        for name in default_participants:
-            cursor.execute(
-                "INSERT OR IGNORE INTO participants (name) VALUES (?)",
-                (name,)
-            )
-        
-        # Expenses table (multi-currency + per-transaction rate)
+        # 5. Expenses table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id TEXT,
                 name TEXT NOT NULL,
                 amount REAL NOT NULL,
                 currency TEXT NOT NULL,
                 buffer_rate REAL NOT NULL,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Actuals (Merged)
                 actual_date TEXT,
                 actual_method TEXT,
                 actual_amount REAL,
@@ -92,20 +100,19 @@ def init_db():
                 actual_thb REAL
             )
         """)
-        
-        # Check if actual columns actally exist (for migration)
+
+        # ... (checking actual columns logic preserved but simplified as we likely have them now)
+        # Check actuals columns just in case (legacy path)
         cursor.execute("PRAGMA table_info(expenses)")
         columns = [info[1] for info in cursor.fetchall()]
         if 'actual_date' not in columns:
-            print("Migrating schema: Adding actuals columns to expenses...")
             cursor.execute("ALTER TABLE expenses ADD COLUMN actual_date TEXT")
             cursor.execute("ALTER TABLE expenses ADD COLUMN actual_method TEXT")
             cursor.execute("ALTER TABLE expenses ADD COLUMN actual_amount REAL")
             cursor.execute("ALTER TABLE expenses ADD COLUMN actual_currency TEXT")
             cursor.execute("ALTER TABLE expenses ADD COLUMN actual_thb REAL")
-        
-        
-        # Expense-Participant junction
+
+        # 6. Junctions (don't need trip_id, they link by ID)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS expense_participants (
                 expense_id INTEGER,
@@ -116,30 +123,11 @@ def init_db():
             )
         """)
         
-        # Actuals table (Deprecated - keeping for data safety until migration complete)
-        # We will migrate data from here if it still exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='actuals'")
-        if cursor.fetchone():
-            print("Checking checking for legacy actuals data to migrate...")
-            cursor.execute("SELECT * FROM actuals")
-            rows = cursor.fetchall()
-            if rows:
-                print(f"Migrating {len(rows)} legacy actuals...")
-                for row in rows:
-                    cursor.execute("""
-                        UPDATE expenses 
-                        SET actual_date = ?, actual_method = ?, actual_amount = ?, actual_currency = ?, actual_thb = ?, status = 'collected'
-                        WHERE id = ?
-                    """, (row['date'], row['payment_method'], row['actual_amount'], row['actual_currency'], row['actual_thb'], row['expense_id']))
-            
-            # Rename/Drop map legacy table to avoid re-migration
-            cursor.execute("DROP TABLE actuals")
-            print("Legacy actuals table dropped.")
-        
-        # Refunds table
+        # 7. Refunds
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS refunds (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id TEXT,
                 participant_id INTEGER,
                 amount_thb REAL NOT NULL,
                 notes TEXT,
@@ -148,10 +136,11 @@ def init_db():
             )
         """)
         
-        # Invoices table (versioned)
+        # 8. Invoices
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id TEXT,
                 participant_id INTEGER,
                 version INTEGER NOT NULL,
                 total_thb REAL NOT NULL,
@@ -161,7 +150,7 @@ def init_db():
             )
         """)
         
-        # Invoice items junction
+        # 9. Invoice Items
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS invoice_items (
                 invoice_id INTEGER,
@@ -172,10 +161,11 @@ def init_db():
             )
         """)
         
-        # Receipts table (payment confirmations)
+        # 10. Receipts
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS receipts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id TEXT,
                 participant_id INTEGER,
                 receipt_number INTEGER NOT NULL,
                 total_thb REAL NOT NULL,
@@ -186,7 +176,7 @@ def init_db():
             )
         """)
         
-        # Receipt items junction (which invoiced expenses are paid)
+        # 11. Receipt Items
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS receipt_items (
                 receipt_id INTEGER,
@@ -197,43 +187,163 @@ def init_db():
             )
         """)
 
+        # === Migration Logic ===
+        # Check if we have any trips
+        cursor.execute("SELECT COUNT(*) FROM trips")
+        trip_count = cursor.fetchone()[0]
+        
+        legacy_trip_id = None
+        
+        if trip_count == 0:
+            # Check if we have legacy data (participants)
+            cursor.execute("SELECT COUNT(*) FROM participants")
+            part_count = cursor.fetchone()[0]
+            
+            if part_count > 0:
+                print("Migrating legacy data to new trip...")
+                legacy_trip_id = str(uuid.uuid4())
+                cursor.execute(
+                    "INSERT INTO trips (id, name) VALUES (?, ?)", 
+                    (legacy_trip_id, "Legacy Trip")
+                )
+                
+                # Assign this trip_id to all existing records
+                for table in tables:
+                    cursor.execute(f"UPDATE {table} SET trip_id = ? WHERE trip_id IS NULL", (legacy_trip_id,))
+                
+                print(f"Migration complete. Legacy data assigned to trip {legacy_trip_id}")
+        
+        # === Schema Fixes ===
+        # Fix Participants Unique Constraint (name -> trip_id + name)
+        # We check if we can insert a duplicate name for different trip. If not, we probably have the old constraint.
+        # Simplest way to check schema is pragma index_list
+        cursor.execute("PRAGMA index_list(participants)")
+        indices = cursor.fetchall()
+        has_name_unique = False
+        for idx in indices:
+            if idx['unique'] and idx['origin'] == 'u': # unique constrain
+                 # Check columns
+                 cursor.execute(f"PRAGMA index_info({idx['name']})")
+                 cols = cursor.fetchall()
+                 if len(cols) == 1 and cols[0]['name'] == 'name':
+                     has_name_unique = True
+                     break
+        
+        if has_name_unique:
+            print("Detected legacy UNIQUE constraint on participants(name). Migrating table...")
+            # Create new table
+            cursor.execute("""
+                CREATE TABLE participants_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trip_id TEXT,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(trip_id, name)
+                )
+            """)
+            # Copy data
+            cursor.execute("INSERT INTO participants_new (id, trip_id, name, created_at) SELECT id, trip_id, name, created_at FROM participants")
+            # Drop old
+            cursor.execute("DROP TABLE participants")
+            # Rename new
+            cursor.execute("ALTER TABLE participants_new RENAME TO participants")
+            print("Participants table upgraded.")
+
+
+# === Trip Functions ===
+
+def create_trip(name: str) -> str:
+    """Create a new trip and return its ID"""
+    trip_id = str(uuid.uuid4())
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO trips (id, name) VALUES (?, ?)", (trip_id, name))
+        
+        # Create default settings for this trip
+        cursor.execute(
+            "INSERT INTO settings (trip_id, default_buffer_rate, trip_name) VALUES (?, 0.25, ?)",
+            (trip_id, name)
+        )
+    return trip_id
+
+
+def get_trip(trip_id: str) -> Optional[Dict[str, Any]]:
+    """Get trip details"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trips WHERE id = ?", (trip_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def list_trips() -> List[Dict[str, Any]]:
+    """List all trips"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trips ORDER BY created_at DESC")
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_admin_dashboard_stats() -> List[Dict[str, Any]]:
+    """Get summarized stats for all trips for the admin dashboard"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Use subqueries to avoid Cartesian products in joins
+        cursor.execute("""
+            SELECT t.*,
+                (SELECT COUNT(*) FROM participants WHERE trip_id = t.id) as participant_count,
+                (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE trip_id = t.id) as total_spend,
+                (SELECT COUNT(*) FROM expenses WHERE trip_id = t.id) as expense_count
+            FROM trips t
+            ORDER BY t.created_at DESC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
 
 # === Settings Functions ===
 
-def get_settings() -> Dict[str, Any]:
+def get_settings(trip_id: str) -> Dict[str, Any]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM settings WHERE id = 1")
+        cursor.execute("SELECT * FROM settings WHERE trip_id = ?", (trip_id,))
         row = cursor.fetchone()
-        return dict(row) if row else {}
+        if not row:
+            # Create default if missing
+            trip = get_trip(trip_id)
+            trip_name = trip['name'] if trip else "New Trip"
+            cursor.execute("INSERT INTO settings (trip_id, default_buffer_rate, trip_name) VALUES (?, 0.25, ?)", (trip_id, trip_name))
+            conn.commit()
+            return {"trip_id": trip_id, "default_buffer_rate": 0.25, "trip_name": trip_name}
+        return dict(row)
 
 
-def update_settings(default_buffer_rate: Optional[float] = None, trip_name: Optional[str] = None):
+def update_settings(trip_id: str, default_buffer_rate: Optional[float] = None, trip_name: Optional[str] = None):
     with get_db() as conn:
         cursor = conn.cursor()
         if default_buffer_rate is not None:
-            cursor.execute("UPDATE settings SET default_buffer_rate = ? WHERE id = 1", (default_buffer_rate,))
+            cursor.execute("UPDATE settings SET default_buffer_rate = ? WHERE trip_id = ?", (default_buffer_rate, trip_id))
         if trip_name is not None:
-            cursor.execute("UPDATE settings SET trip_name = ? WHERE id = 1", (trip_name,))
+            cursor.execute("UPDATE settings SET trip_name = ? WHERE trip_id = ?", (trip_name, trip_id))
+            cursor.execute("UPDATE trips SET name = ? WHERE id = ?", (trip_name, trip_id))
 
 
 # === Participant Functions ===
 
-def get_all_participants() -> List[Dict[str, Any]]:
+def get_all_participants(trip_id: str) -> List[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM participants ORDER BY name")
+        cursor.execute("SELECT * FROM participants WHERE trip_id = ? ORDER BY name", (trip_id,))
         return [dict(row) for row in cursor.fetchall()]
 
 
-def add_participant(name: str) -> int:
+def add_participant(trip_id: str, name: str) -> int:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO participants (name) VALUES (?)", (name,))
+        cursor.execute("INSERT INTO participants (trip_id, name) VALUES (?, ?)", (trip_id, name))
         return cursor.lastrowid
 
 
-def delete_participant(participant_id: int):
+def delete_participant(participant_id: int): # ID is global unique (auto-inc), so strictly speaking trip_id not needed for delete but good for access control if we had it
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM participants WHERE id = ?", (participant_id,))
@@ -241,7 +351,7 @@ def delete_participant(participant_id: int):
 
 # === Expense Functions ===
 
-def get_all_expenses() -> List[Dict[str, Any]]:
+def get_all_expenses(trip_id: str) -> List[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -253,9 +363,10 @@ def get_all_expenses() -> List[Dict[str, Any]]:
             LEFT JOIN participants p ON ep.participant_id = p.id
             LEFT JOIN invoice_items ii ON e.id = ii.expense_id
             LEFT JOIN invoices i ON ii.invoice_id = i.id
+            WHERE e.trip_id = ?
             GROUP BY e.id
             ORDER BY e.created_at DESC
-        """)
+        """, (trip_id,))
         expenses = []
         for row in cursor.fetchall():
             expense = dict(row)
@@ -296,12 +407,12 @@ def get_expense_by_id(expense_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-def add_expense(name: str, amount: float, currency: str, buffer_rate: float, participant_ids: List[int]) -> int:
+def add_expense(trip_id: str, name: str, amount: float, currency: str, buffer_rate: float, participant_ids: List[int]) -> int:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO expenses (name, amount, currency, buffer_rate, status) VALUES (?, ?, ?, ?, 'pending')",
-            (name, amount, currency.upper(), buffer_rate)
+            "INSERT INTO expenses (trip_id, name, amount, currency, buffer_rate, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+            (trip_id, name, amount, currency.upper(), buffer_rate)
         )
         expense_id = cursor.lastrowid
         
@@ -438,12 +549,12 @@ def get_previous_invoices(participant_id: int) -> List[Dict[str, Any]]:
         return [dict(row) for row in cursor.fetchall()]
 
 
-def create_invoice(participant_id: int, version: int, total_thb: float, pdf_path: str, expense_ids: List[int]) -> int:
+def create_invoice(trip_id: str, participant_id: int, version: int, total_thb: float, pdf_path: str, expense_ids: List[int]) -> int:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO invoices (participant_id, version, total_thb, pdf_path) VALUES (?, ?, ?, ?)",
-            (participant_id, version, total_thb, pdf_path)
+            "INSERT INTO invoices (trip_id, participant_id, version, total_thb, pdf_path) VALUES (?, ?, ?, ?, ?)",
+            (trip_id, participant_id, version, total_thb, pdf_path)
         )
         invoice_id = cursor.lastrowid
         
@@ -547,12 +658,12 @@ def get_previous_receipts(participant_id: int) -> List[Dict[str, Any]]:
         return [dict(row) for row in cursor.fetchall()]
 
 
-def create_receipt(participant_id: int, receipt_number: int, total_thb: float, payment_method: str, pdf_path: str, invoice_ids: List[int]) -> int:
+def create_receipt(trip_id: str, participant_id: int, receipt_number: int, total_thb: float, payment_method: str, pdf_path: str, invoice_ids: List[int]) -> int:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO receipts (participant_id, receipt_number, total_thb, payment_method, pdf_path) VALUES (?, ?, ?, ?, ?)",
-            (participant_id, receipt_number, total_thb, payment_method, pdf_path)
+            "INSERT INTO receipts (trip_id, participant_id, receipt_number, total_thb, payment_method, pdf_path) VALUES (?, ?, ?, ?, ?, ?)",
+            (trip_id, participant_id, receipt_number, total_thb, payment_method, pdf_path)
         )
         receipt_id = cursor.lastrowid
         
@@ -618,10 +729,10 @@ def get_invoice_expenses(invoice_id: int) -> List[Dict[str, Any]]:
 
 # === Reconciliation Functions ===
 
-def get_participant_by_name(name: str) -> Optional[Dict[str, Any]]:
+def get_participant_by_name(trip_id: str, name: str) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM participants WHERE name = ?", (name,))
+        cursor.execute("SELECT * FROM participants WHERE trip_id = ? AND name = ?", (trip_id, name))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -643,7 +754,7 @@ def get_participant_actuals(participant_id: int) -> List[Dict[str, Any]]:
 
 # === Overview Functions ===
 
-def get_all_invoices_with_status() -> List[Dict[str, Any]]:
+def get_all_invoices_with_status(trip_id: str) -> List[Dict[str, Any]]:
     """Get all invoices with their payment status and receipt info"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -655,12 +766,13 @@ def get_all_invoices_with_status() -> List[Dict[str, Any]]:
             JOIN participants p ON i.participant_id = p.id
             LEFT JOIN receipt_items ri ON i.id = ri.invoice_id
             LEFT JOIN receipts r ON ri.receipt_id = r.id
+            WHERE i.trip_id = ?
             ORDER BY i.created_at DESC
-        """)
+        """, (trip_id,))
         return [dict(row) for row in cursor.fetchall()]
 
 
-def get_all_receipts() -> List[Dict[str, Any]]:
+def get_all_receipts(trip_id: str) -> List[Dict[str, Any]]:
     """Get all receipts with linked invoices"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -668,52 +780,9 @@ def get_all_receipts() -> List[Dict[str, Any]]:
             SELECT r.*, p.name as participant_name
             FROM receipts r
             JOIN participants p ON r.participant_id = p.id
+            WHERE r.trip_id = ?
             ORDER BY r.created_at DESC
-        """)
-        receipts = [dict(row) for row in cursor.fetchall()]
-        
-        # Get linked invoices for each receipt
-        for receipt in receipts:
-            cursor.execute("""
-                SELECT i.version FROM invoices i
-                JOIN receipt_items ri ON i.id = ri.invoice_id
-                WHERE ri.receipt_id = ?
-                ORDER BY i.version
-            """, (receipt['id'],))
-            receipt['invoice_versions'] = [row[0] for row in cursor.fetchall()]
-        
-        return receipts
-
-
-# === Overview Functions ===
-
-def get_all_invoices_with_status() -> List[Dict[str, Any]]:
-    """Get all invoices with their payment status and receipt info"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT i.*, p.name as participant_name,
-                   CASE WHEN ri.receipt_id IS NOT NULL THEN 'paid' ELSE 'unpaid' END as status,
-                   r.receipt_number
-            FROM invoices i
-            JOIN participants p ON i.participant_id = p.id
-            LEFT JOIN receipt_items ri ON i.id = ri.invoice_id
-            LEFT JOIN receipts r ON ri.receipt_id = r.id
-            ORDER BY i.created_at DESC
-        """)
-        return [dict(row) for row in cursor.fetchall()]
-
-
-def get_all_receipts() -> List[Dict[str, Any]]:
-    """Get all receipts with linked invoices"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT r.*, p.name as participant_name
-            FROM receipts r
-            JOIN participants p ON r.participant_id = p.id
-            ORDER BY r.created_at DESC
-        """)
+        """, (trip_id,))
         receipts = [dict(row) for row in cursor.fetchall()]
         
         # Get linked invoices for each receipt
@@ -730,13 +799,13 @@ def get_all_receipts() -> List[Dict[str, Any]]:
 
 
 
-def get_overview_stats() -> Dict[str, Any]:
+def get_overview_stats(trip_id: str) -> Dict[str, Any]:
     """Get overview statistics"""
     with get_db() as conn:
         cursor = conn.cursor()
         
         # Total invoices and amount
-        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_thb), 0) FROM invoices")
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_thb), 0) FROM invoices WHERE trip_id = ?", (trip_id,))
         inv_count, inv_total = cursor.fetchone()
         
         # Paid invoices
@@ -744,11 +813,12 @@ def get_overview_stats() -> Dict[str, Any]:
             SELECT COUNT(DISTINCT i.id), COALESCE(SUM(i.total_thb), 0)
             FROM invoices i
             JOIN receipt_items ri ON i.id = ri.invoice_id
-        """)
+            WHERE i.trip_id = ?
+        """, (trip_id,))
         paid_count, paid_total = cursor.fetchone()
         
         # Receipts
-        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_thb), 0) FROM receipts")
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_thb), 0) FROM receipts WHERE trip_id = ?", (trip_id,))
         receipt_count, receipt_total = cursor.fetchone()
         
     return {
@@ -763,7 +833,7 @@ def get_overview_stats() -> Dict[str, Any]:
         }
 
 
-def get_cash_flow_stats() -> Dict[str, Any]:
+def get_cash_flow_stats(trip_id: str) -> Dict[str, Any]:
     """Get daily cash flow statistics (inflows vs outflows)"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -773,20 +843,18 @@ def get_cash_flow_stats() -> Dict[str, Any]:
         cursor.execute("""
             SELECT actual_date, SUM(actual_thb) 
             FROM expenses 
-            WHERE status = 'collected' AND actual_date IS NOT NULL 
+            WHERE status = 'collected' AND actual_date IS NOT NULL AND trip_id = ?
             GROUP BY actual_date
-        """)
+        """, (trip_id,))
         outflows = {row[0]: row[1] for row in cursor.fetchall()}
         
         # Inflows (Receipts generated)
-        # We use the receipt creation date (roughly when money is received/acknowledged)
-        # Or better, we could look at receipt date if we stored it specifically, but created_at is fine for now
-        # Actually created_at is timestamp, let's cast to date
         cursor.execute("""
             SELECT date(created_at), SUM(total_thb) 
             FROM receipts 
+            WHERE trip_id = ?
             GROUP BY date(created_at)
-        """)
+        """, (trip_id,))
         inflows = {row[0]: row[1] for row in cursor.fetchall()}
         
         # Merge dates
@@ -812,7 +880,7 @@ def get_cash_flow_stats() -> Dict[str, Any]:
         }
 
 
-def get_financial_dashboard_data() -> Dict[str, Any]:
+def get_financial_dashboard_data(trip_id: str) -> Dict[str, Any]:
     """Get high-level financial KPIs for the dashboard"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -820,10 +888,10 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
         # 1. Net Cash Position (Liquid Cash available derived from Trip perspective)
         # Actually, for a trip manager:
         # Cash Position = Total Receipts (Money In) - Total Paid Expenses (Money Out)
-        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM receipts")
+        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM receipts WHERE trip_id = ?", (trip_id,))
         total_inflow = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COALESCE(SUM(actual_thb), 0) FROM expenses WHERE status = 'collected' AND actual_date IS NOT NULL")
+        cursor.execute("SELECT COALESCE(SUM(actual_thb), 0) FROM expenses WHERE status = 'collected' AND actual_date IS NOT NULL AND trip_id = ?", (trip_id,))
         total_outflow = cursor.fetchone()[0]
         
         net_cash_position = total_inflow - total_outflow
@@ -831,7 +899,7 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
         # 2. Collection Ratio
         # (Total Collected from Invoices / Total Invoiced Amount)
         # Note: Receipts are generated from Invoices.
-        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM invoices")
+        cursor.execute("SELECT COALESCE(SUM(total_thb), 0) FROM invoices WHERE trip_id = ?", (trip_id,))
         total_invoiced = cursor.fetchone()[0]
         
         collection_ratio = 0
@@ -853,20 +921,24 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
         # But 'amount' * 'buffer_rate' gives approximate cost including buffer.
         # Let's stick to what we have in `get_overview_stats`: `total_invoiced_amount` is based on expenses assigned to invoices.
         # Let's query expenses directly for Total Incurred.
+        # Query total spending (incurred)
+
         cursor.execute("""
             SELECT 
                 SUM(CASE 
                     WHEN actual_thb IS NOT NULL THEN actual_thb 
                     WHEN currency = 'THB' THEN amount
-                    ELSE amount * 0.23 -- Fallback rate if buffer_rate missing/weird? No, use buffer_rate
+                    ELSE amount * buffer_rate
                 END)
-            FROM expenses
-        """)
-        # Actually, better logic:
-        # If actual_thb exists, use it.
-        # If not, use amount * (if currency='JPY' then 0.24 else 1) -- wait buffer_rate is stored.
-        # Let's just use the invoice total as proxy for now, or just sum actual_thb for "Realized Spend".
-        # Let's use "Realized Spend" (Paid) vs "Committed Spend" (Total).
+            FROM expenses WHERE trip_id = ?
+        """, (trip_id,))
+        
+        # ... (Rest of logic similar but filtered)
+        # Let's just re-implement the block clearly
+        
+        # Fetch clean result
+        res = cursor.fetchone()[0]
+        total_spending = res if res else 0 # Committed/Realized Spend
         
         # 5. Expense Performance (Planned vs Actual)
         # Total Budget (Planned) = Sum of (amount * buffer_rate) for all expenses (or rate if THB)
@@ -876,8 +948,8 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
                     WHEN currency = 'THB' THEN amount
                     ELSE amount * buffer_rate
                 END
-            ) FROM expenses
-        """)
+            ) FROM expenses WHERE trip_id = ?
+        """, (trip_id,))
         total_budget_thb = cursor.fetchone()[0] or 0
         
         # Paid Budget (Planned cost of items that are now Paid)
@@ -887,8 +959,8 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
                     WHEN currency = 'THB' THEN amount
                     ELSE amount * buffer_rate
                 END
-            ) FROM expenses WHERE status = 'collected'
-        """)
+            ) FROM expenses WHERE status = 'collected' AND trip_id = ?
+        """, (trip_id,))
         paid_budget_thb = cursor.fetchone()[0] or 0
         
         # Actual Paid (Real cost of items that are Paid)
@@ -902,8 +974,8 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
                     WHEN currency = 'THB' THEN amount
                     ELSE amount * buffer_rate
                 END
-            ) FROM expenses WHERE status != 'collected'
-        """)
+            ) FROM expenses WHERE status != 'collected' AND trip_id = ?
+        """, (trip_id,))
         pending_budget_thb = cursor.fetchone()[0] or 0
         
         # Variance (Savings) = Paid Budget - Actual Paid
@@ -911,7 +983,7 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
         savings_on_paid = paid_budget_thb - total_actual_paid_thb
         
         
-        cursor.execute("SELECT COUNT(*) FROM expenses")
+        cursor.execute("SELECT COUNT(*) FROM expenses WHERE trip_id = ?", (trip_id,))
         total_expenses_count = cursor.fetchone()[0]
         
         return {
@@ -931,11 +1003,11 @@ def get_financial_dashboard_data() -> Dict[str, Any]:
         }
 
 
-def get_expense_breakdown() -> Dict[str, Any]:
+def get_expense_breakdown(trip_id: str) -> Dict[str, Any]:
     """Get expense breakdown by category (heuristic)"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT name, COALESCE(actual_thb, amount * 0.23) as val FROM expenses")
+        cursor.execute("SELECT name, COALESCE(actual_thb, amount * buffer_rate) as val FROM expenses WHERE trip_id = ?", (trip_id,))
         rows = cursor.fetchall()
         
         categories = {
