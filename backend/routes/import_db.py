@@ -59,17 +59,20 @@ async def import_database(
                 
                 # Tables to process in specific order (dependency wise)
                 # We will delete everything first.
+                # Include 'trips' for multi-trip support
                 all_tables = [
                     "receipt_items", "invoice_items", "expense_participants", 
-                    "receipts", "invoices", "refunds", "expenses", "participants", "settings"
+                    "receipts", "invoices", "refunds", "expenses", "participants", "settings",
+                    "trips"
                 ]
                 
                 for table in all_tables:
                     cursor.execute(f"DELETE FROM {table}")
                     
                 # Now insert data (Order mostly doesn't matter with FK keys OFF, but let's be nice)
+                # Include 'trips' for multi-trip support
                 tables_to_import = [
-                    "settings", "participants", "expenses", "refunds", 
+                    "trips", "settings", "participants", "expenses", "refunds", 
                     "invoices", "receipts", "expense_participants", "invoice_items", "receipt_items"
                 ]
                 
@@ -105,6 +108,11 @@ async def import_database(
             finally:
                 cursor.execute("PRAGMA foreign_keys = ON")
                 conn.close()
+            
+            # Run migration to handle orphaned data (NULL trip_id)
+            # This creates Legacy Trip if needed and assigns orphaned records
+            from database import init_db
+            init_db()
                 
             return {"success": True, "message": "Database successfully restored from backup."}
             
