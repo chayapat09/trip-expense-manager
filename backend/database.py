@@ -213,6 +213,33 @@ def init_db():
                 
                 print(f"Migration complete. Legacy data assigned to trip {legacy_trip_id}")
         
+        # === Handle Orphaned Data ===
+        # If trips exist but there's data with NULL trip_id, assign to Legacy Trip
+        cursor.execute("SELECT COUNT(*) FROM participants WHERE trip_id IS NULL")
+        orphan_count = cursor.fetchone()[0]
+        
+        if orphan_count > 0:
+            print(f"Found {orphan_count} orphaned participants. Assigning to Legacy Trip...")
+            
+            # Find or create Legacy Trip
+            cursor.execute("SELECT id FROM trips WHERE name = 'Legacy Trip' LIMIT 1")
+            row = cursor.fetchone()
+            
+            if row:
+                legacy_trip_id = row[0]
+            else:
+                legacy_trip_id = str(uuid.uuid4())
+                cursor.execute(
+                    "INSERT INTO trips (id, name) VALUES (?, ?)", 
+                    (legacy_trip_id, "Legacy Trip")
+                )
+            
+            # Assign orphaned data to Legacy Trip
+            for table in tables:
+                cursor.execute(f"UPDATE {table} SET trip_id = ? WHERE trip_id IS NULL", (legacy_trip_id,))
+            
+            print(f"Orphaned data assigned to Legacy Trip {legacy_trip_id}")
+        
         # === Schema Fixes ===
         # Fix Participants Unique Constraint (name -> trip_id + name)
         # We check if we can insert a duplicate name for different trip. If not, we probably have the old constraint.
