@@ -2,7 +2,7 @@
 Invoices API routes - versioned invoices with PDF generation
 """
 from fastapi import APIRouter, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from datetime import datetime
 from typing import List
 from schemas import InvoiceData, InvoiceExpenseItem, InvoiceGenerationRequest
@@ -70,28 +70,50 @@ def get_overview(x_trip_id: str = Header(...)):
 
 @router.get("/download/{invoice_id}")
 def download_invoice_by_id(invoice_id: int):
-    """Download invoice PDF by ID"""
-    with db.get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT i.*, p.name as participant_name 
-            FROM invoices i 
-            JOIN participants p ON i.participant_id = p.id 
-            WHERE i.id = ?
-        """, (invoice_id,))
-        invoice = cursor.fetchone()
-        
+    """Download invoice PDF by ID - generated on-the-fly"""
+    # Get invoice with participant info
+    invoice = db.get_invoice_by_id(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     
-    invoice = dict(invoice)
-    if not invoice['pdf_path']:
-        raise HTTPException(status_code=404, detail="PDF not found")
+    # Get expenses for this invoice
+    expenses = db.get_invoice_expenses(invoice_id)
     
-    return FileResponse(
-        invoice['pdf_path'],
+    # Get trip settings
+    trip_id = invoice.get('trip_id')
+    if not trip_id:
+        # Fallback: get trip_id from participant
+        with db.get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT trip_id FROM participants WHERE id = ?", (invoice['participant_id'],))
+            row = cursor.fetchone()
+            trip_id = row[0] if row else None
+    
+    settings = db.get_settings(trip_id) if trip_id else {'trip_name': 'Trip'}
+    
+    # Build invoice data
+    items = [calculate_expense_share(e, invoice['participant_id']) for e in expenses]
+    
+    invoice_data = InvoiceData(
+        participant_name=invoice['participant_name'],
+        version=invoice['version'],
+        generated_at=invoice['created_at'],
+        previous_invoices=[],
+        new_expenses=items,
+        this_invoice_total=invoice['total_thb'],
+        grand_total=invoice['total_thb'],
+        has_new_expenses=len(items) > 0
+    )
+    
+    # Generate PDF bytes on-the-fly
+    pdf_bytes = pdf_generator.generate_invoice_pdf(invoice_data, settings['trip_name'])
+    
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename=f"invoice_{invoice['participant_name']}_v{invoice['version']}.pdf"
+        headers={
+            "Content-Disposition": f"attachment; filename=invoice_{invoice['participant_name']}_v{invoice['version']}.pdf"
+        }
     )
 
 
@@ -220,15 +242,12 @@ def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = 
         has_new_expenses=invoice_data.has_new_expenses
     )
     
-    # 3. Generate PDF with correct ID
-    pdf_path = pdf_generator.generate_invoice_pdf(invoice_data, settings['trip_name'])
-    
-    # 4. Update record
-    db.update_invoice_pdf(invoice_id, pdf_path, invoice_id)
+    # 3. Update version in record (no PDF storage needed - generated on-the-fly)
+    db.update_invoice_pdf(invoice_id, "", invoice_id)
     
     return {
         "message": f"Invoice #{invoice_data.version} generated for {participant_name}",
-        "pdf_path": pdf_path,
+        "invoice_id": invoice_id,
         "total": invoice_data.this_invoice_total,
         "grand_total": invoice_data.grand_total
     }
@@ -236,7 +255,7 @@ def generate_invoice(participant_name: str, request: InvoiceGenerationRequest = 
 
 @router.get("/{participant_name}/pdf")
 def download_latest_invoice(participant_name: str, x_trip_id: str = Header(...)):
-    """Download the latest invoice PDF for a participant"""
+    """Download the latest invoice PDF for a participant - generated on-the-fly"""
     participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
@@ -246,14 +265,9 @@ def download_latest_invoice(participant_name: str, x_trip_id: str = Header(...))
         raise HTTPException(status_code=404, detail="No invoices found for this participant")
     
     latest = invoices[-1]
-    if not latest['pdf_path']:
-        raise HTTPException(status_code=404, detail="PDF not found")
     
-    return FileResponse(
-        latest['pdf_path'],
-        media_type="application/pdf",
-        filename=f"invoice_{participant_name}_v{latest['version']}.pdf"
-    )
+    # Generate on-the-fly using download_invoice_by_id
+    return download_invoice_by_id(latest['id'])
 
 
 @router.get("/{participant_name}/history")

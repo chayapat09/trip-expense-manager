@@ -3,6 +3,7 @@ PDF Generator for invoices and refund statements
 Using ReportLab for PDF generation with Thai font support
 """
 import os
+import io
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -14,10 +15,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from typing import List, Dict, Any
 
 from schemas import InvoiceData, RefundData, InvoiceExpenseItem
-
-# PDF output directory
-PDF_DIR = os.path.join(os.path.dirname(__file__), "data", "pdfs")
-os.makedirs(PDF_DIR, exist_ok=True)
 
 
 
@@ -95,14 +92,12 @@ class PDFGenerator:
             ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
         ])
-
     
-    def generate_invoice_pdf(self, data: InvoiceData, trip_name: str) -> str:
-        """Generate invoice PDF and return file path"""
-        filename = f"invoice_{data.participant_name.lower()}_v{data.version}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        filepath = os.path.join(PDF_DIR, filename)
+    def generate_invoice_pdf(self, data: InvoiceData, trip_name: str) -> bytes:
+        """Generate invoice PDF and return bytes (on-the-fly)"""
+        buffer = io.BytesIO()
         
-        doc = SimpleDocTemplate(filepath, pagesize=A4, 
+        doc = SimpleDocTemplate(buffer, pagesize=A4, 
                                rightMargin=2*cm, leftMargin=2*cm,
                                topMargin=2*cm, bottomMargin=2*cm)
         
@@ -162,14 +157,14 @@ class PDFGenerator:
         elements.append(Paragraph("Thank you for your prompt payment!", self.styles['Normal']))
 
         doc.build(elements)
-        return filepath
+        buffer.seek(0)
+        return buffer.getvalue()
     
-    def generate_refund_pdf(self, data: RefundData) -> str:
-        """Generate detailed refund statement PDF"""
-        filename = f"refund_{data.participant_name.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        filepath = os.path.join(PDF_DIR, filename)
+    def generate_refund_pdf(self, data: RefundData) -> bytes:
+        """Generate detailed refund statement PDF (on-the-fly)"""
+        buffer = io.BytesIO()
         
-        doc = SimpleDocTemplate(filepath, pagesize=A4,
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
                                rightMargin=1.5*cm, leftMargin=1.5*cm,
                                topMargin=2*cm, bottomMargin=2*cm)
         
@@ -273,16 +268,14 @@ class PDFGenerator:
         elements.append(Paragraph(refund_text, p_style))
         
         doc.build(elements)
-        return filepath
+        buffer.seek(0)
+        return buffer.getvalue()
     
-    def generate_receipt_pdf(self, data, trip_name: str) -> str:
-        """Generate receipt PDF confirming payment received"""
-        from schemas import ReceiptData
+    def generate_receipt_pdf(self, data, trip_name: str) -> bytes:
+        """Generate receipt PDF confirming payment received (on-the-fly)"""
+        buffer = io.BytesIO()
         
-        filename = f"receipt_{data.participant_name.lower()}_r{data.receipt_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        filepath = os.path.join(PDF_DIR, filename)
-        
-        doc = SimpleDocTemplate(filepath, pagesize=A4,
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
                                rightMargin=2*cm, leftMargin=2*cm,
                                topMargin=2*cm, bottomMargin=2*cm)
         
@@ -333,7 +326,8 @@ class PDFGenerator:
         elements.append(Paragraph("Thank you for your payment!", self.styles['SubtitleStyle']))
         
         doc.build(elements)
-        return filepath
+        buffer.seek(0)
+        return buffer.getvalue()
 
 
 # Singleton instance

@@ -2,7 +2,7 @@
 Receipt routes - Payment confirmation PDFs
 """
 from fastapi import APIRouter, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from datetime import datetime
 from typing import Optional
 
@@ -67,28 +67,57 @@ def get_receipt_details(receipt_id: int):
 
 @router.get("/download/{receipt_id}")
 def download_receipt_by_id(receipt_id: int):
-    """Download receipt PDF by ID"""
-    with database.get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT r.*, p.name as participant_name 
-            FROM receipts r 
-            JOIN participants p ON r.participant_id = p.id 
-            WHERE r.id = ?
-        """, (receipt_id,))
-        receipt = cursor.fetchone()
-        
+    """Download receipt PDF by ID - generated on-the-fly"""
+    receipt = database.get_receipt_by_id(receipt_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
     
-    receipt = dict(receipt)
-    if not receipt['pdf_path']:
-        raise HTTPException(status_code=404, detail="PDF not found")
+    # Get trip settings
+    trip_id = receipt.get('trip_id')
+    if not trip_id:
+        with database.get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT trip_id FROM participants WHERE id = ?", (receipt['participant_id'],))
+            row = cursor.fetchone()
+            trip_id = row[0] if row else None
     
-    return FileResponse(
-        receipt['pdf_path'],
+    settings = database.get_settings(trip_id) if trip_id else {'trip_name': 'Trip'}
+    
+    # Get linked invoices and build items
+    invoices = database.get_receipt_invoices(receipt_id)
+    items = []
+    for invoice in invoices:
+        expenses = database.get_invoice_expenses(invoice['id'])
+        for expense in expenses:
+            total_participants = expense['total_participants']
+            share_thb = expense['amount'] * expense['buffer_rate'] / total_participants if expense['currency'] == 'JPY' else expense['amount'] / total_participants
+            items.append(ReceiptItem(
+                expense_name=expense['name'],
+                original_amount=expense['amount'],
+                currency=expense['currency'],
+                buffer_rate=expense['buffer_rate'] if expense['currency'] == 'JPY' else None,
+                share=f"1/{total_participants}",
+                amount_paid=round(share_thb, 2)
+            ))
+    
+    receipt_data = ReceiptData(
+        participant_name=receipt['participant_name'],
+        receipt_number=receipt['receipt_number'],
+        generated_at=receipt['created_at'],
+        trip_name=settings['trip_name'],
+        items=items,
+        total_paid=receipt['total_thb'],
+        payment_method=receipt['payment_method']
+    )
+    
+    pdf_bytes = pdf_generator.generate_receipt_pdf(receipt_data, settings['trip_name'])
+    
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename=f"receipt_{receipt['participant_name']}_r{receipt['receipt_number']}.pdf"
+        headers={
+            "Content-Disposition": f"attachment; filename=receipt_{receipt['participant_name']}_r{receipt['receipt_number']}.pdf"
+        }
     )
 
 
@@ -212,22 +241,19 @@ def generate_receipt(participant_name: str, request: ReceiptGenerationRequest, x
         payment_method=request.payment_method
     )
     
-    # 3. Generate PDF
-    pdf_path = pdf_generator.generate_receipt_pdf(receipt_data, settings['trip_name'])
-    
-    # 4. Update Database
-    database.update_receipt_pdf(receipt_id, pdf_path, receipt_number)
+    # 3. Update Database (no PDF storage needed - generated on-the-fly)
+    database.update_receipt_pdf(receipt_id, "", receipt_number)
     
     return {
         "message": f"Receipt #{receipt_number} generated for {participant_name}",
-        "pdf_path": pdf_path,
+        "receipt_id": receipt_id,
         "total": round(total, 2)
     }
 
 
 @router.get("/{participant_name}/pdf")
 def download_receipt(participant_name: str, x_trip_id: str = Header(...)):
-    """Download the latest receipt PDF"""
+    """Download the latest receipt PDF - generated on-the-fly"""
     participant = database.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
@@ -237,11 +263,7 @@ def download_receipt(participant_name: str, x_trip_id: str = Header(...)):
         raise HTTPException(status_code=404, detail="No receipts found")
     
     latest = receipts[-1]
-    return FileResponse(
-        path=latest['pdf_path'],
-        media_type='application/pdf',
-        filename=f"receipt_{participant_name}_r{latest['receipt_number']}.pdf"
-    )
+    return download_receipt_by_id(latest['id'])
 
 
 @router.get("/{participant_name}/history")

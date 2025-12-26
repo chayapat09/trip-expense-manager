@@ -2,7 +2,7 @@
 Refunds API routes - reconciliation and refund PDF generation
 """
 from fastapi import APIRouter, HTTPException, Header
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from datetime import datetime
 from typing import List
 from schemas import RefundData, RefundCollectedItem, RefundActualItem, ReconciliationItem
@@ -110,36 +110,35 @@ def get_refund_data(participant_name: str, x_trip_id: str = Header(...)) -> Refu
 
 
 @router.post("/{participant_name}/pdf")
-def generate_refund_pdf(participant_name: str, x_trip_id: str = Header(...)):
-    """Generate refund statement PDF for a participant"""
+def generate_refund_pdf_endpoint(participant_name: str, x_trip_id: str = Header(...)):
+    """Generate refund statement PDF data for a participant"""
     participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
     refund_data = calculate_participant_refund(x_trip_id, participant['id'], participant_name)
     
-    # Generate PDF
-    pdf_path = pdf_generator.generate_refund_pdf(refund_data)
-    
     return {
-        "message": f"Refund statement generated for {participant_name}",
-        "pdf_path": pdf_path,
+        "message": f"Refund statement ready for {participant_name}",
         "refund_amount": refund_data.refund_amount
     }
 
 
 @router.get("/{participant_name}/pdf/download")
 def download_refund_pdf(participant_name: str, x_trip_id: str = Header(...)):
-    """Generate and download refund PDF directly"""
+    """Generate and download refund PDF directly - on-the-fly"""
     participant = db.get_participant_by_name(x_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
     refund_data = calculate_participant_refund(x_trip_id, participant['id'], participant_name)
-    pdf_path = pdf_generator.generate_refund_pdf(refund_data)
+    pdf_bytes = pdf_generator.generate_refund_pdf(refund_data)
     
-    return FileResponse(
-        pdf_path,
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename=f"refund_{participant_name}.pdf"
+        headers={
+            "Content-Disposition": f"attachment; filename=refund_{participant_name}.pdf"
+        }
     )
+
