@@ -76,6 +76,13 @@ class PDFGenerator:
             textColor=colors.HexColor('#16213e'),
             fontName=self.bold_font_name
         ))
+        self.styles.add(ParagraphStyle(
+            name='TableCell',
+            fontSize=10,
+            leading=12,
+            textColor=colors.HexColor('#1a1a2e'),
+            fontName=self.font_name
+        ))
     
     def _create_table_style(self) -> TableStyle:
         """Standard table styling"""
@@ -90,6 +97,7 @@ class PDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
         ])
     
@@ -131,7 +139,7 @@ class PDFGenerator:
                 currency_symbol = '¥' if item.currency == 'JPY' else '฿'
                 rate_str = f"{item.buffer_rate}" if item.currency == 'JPY' else '-'
                 table_data.append([
-                    item.name,
+                    Paragraph(item.name, self.styles['TableCell']),
                     f"{currency_symbol}{item.original_amount:,.0f}",
                     rate_str,
                     item.share,
@@ -193,7 +201,7 @@ class PDFGenerator:
                 currency_symbol = '¥' if item.currency == 'JPY' else '฿'
                 rate_str = f"{item.buffer_rate}" if item.buffer_rate else '-'
                 table_data.append([
-                    item.expense_name,
+                    Paragraph(item.expense_name, self.styles['TableCell']),
                     f"{currency_symbol}{item.original_amount:,.0f}",
                     rate_str,
                     item.share,
@@ -219,7 +227,7 @@ class PDFGenerator:
             for item in data.actual_items:
                 currency_symbol = '¥' if item.paid_currency == 'JPY' else '฿'
                 table_data.append([
-                    item.expense_name,
+                    Paragraph(item.expense_name, self.styles['TableCell']),
                     f"{currency_symbol}{item.paid_amount:,.0f}",
                     f"฿{item.actual_thb:,.2f}",
                     item.share,
@@ -304,7 +312,7 @@ class PDFGenerator:
                 currency_symbol = '¥' if item.currency == 'JPY' else '฿'
                 rate_str = f"{item.buffer_rate}" if item.buffer_rate else '-'
                 table_data.append([
-                    item.expense_name,
+                    Paragraph(item.expense_name, self.styles['TableCell']),
                     f"{currency_symbol}{item.original_amount:,.0f}",
                     rate_str,
                     item.share,
