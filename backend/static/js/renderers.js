@@ -1087,9 +1087,12 @@ export function renderRefundDetail(data) {
         </div>
 
         <div style="margin-top: 32px; display: flex; justify-content: flex-end;">
-             <button class="btn btn-primary" onclick="window.open('/api/refunds/${data.participant_name}/pdf/download?trip_id=${getTripId()}', '_blank')">
+             <a href="/api/refunds/${data.participant_name}/pdf/download?trip_id=${getTripId()}" 
+                download="refund_${data.participant_name}.pdf"
+                class="btn btn-primary" 
+                style="text-decoration: none;">
                 📄 Download Official PDF Report
-            </button>
+            </a>
         </div>
     `;
 
