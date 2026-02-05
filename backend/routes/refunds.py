@@ -125,13 +125,22 @@ def generate_refund_pdf_endpoint(participant_name: str, x_trip_id: str = Header(
 
 
 @router.get("/{participant_name}/pdf/download")
-def download_refund_pdf(participant_name: str, x_trip_id: str = Header(...)):
-    """Generate and download refund PDF directly - on-the-fly"""
-    participant = db.get_participant_by_name(x_trip_id, participant_name)
+def download_refund_pdf(participant_name: str, trip_id: str = None, x_trip_id: str = Header(None)):
+    """Generate and download refund PDF directly - on-the-fly
+    
+    Accepts trip_id via query parameter (for window.open() calls) or X-Trip-Id header.
+    Query parameter takes precedence since window.open() can't send headers.
+    """
+    # Use query param if provided, otherwise fall back to header
+    effective_trip_id = trip_id or x_trip_id
+    if not effective_trip_id:
+        raise HTTPException(status_code=400, detail="trip_id query parameter or X-Trip-Id header required")
+    
+    participant = db.get_participant_by_name(effective_trip_id, participant_name)
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    refund_data = calculate_participant_refund(x_trip_id, participant['id'], participant_name)
+    refund_data = calculate_participant_refund(effective_trip_id, participant['id'], participant_name)
     pdf_bytes = pdf_generator.generate_refund_pdf(refund_data)
     
     return Response(

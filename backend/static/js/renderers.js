@@ -1,5 +1,5 @@
 import { store } from './store.js';
-import { API_BASE } from './client_api.js';
+import { API_BASE, getTripId } from './client_api.js';
 import { formatCurrency, formatDate } from './utils.js';
 
 // === Participants ===
@@ -1087,7 +1087,7 @@ export function renderRefundDetail(data) {
         </div>
 
         <div style="margin-top: 32px; display: flex; justify-content: flex-end;">
-             <button class="btn btn-primary" onclick="window.open('/api/refunds/${data.participant_name}/pdf/download', '_blank')">
+             <button class="btn btn-primary" onclick="window.open('/api/refunds/${data.participant_name}/pdf/download?trip_id=${getTripId()}', '_blank')">
                 📄 Download Official PDF Report
             </button>
         </div>
